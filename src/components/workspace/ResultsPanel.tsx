@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Table, BarChart3, Loader2, Inbox, Clock } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
@@ -26,14 +26,16 @@ const ResultsPanel = ({ sqlToExecute, onClear }: ResultsPanelProps) => {
     mutationFn: (sql: string) => executeQuery({ sql }).then((r) => r.data),
     onSuccess: (data) => {
       setResult(data);
-      onClear();
     },
   });
 
-  // Auto-execute when new SQL arrives
-  if (sqlToExecute && !mutation.isPending) {
-    mutation.mutate(sqlToExecute);
-  }
+  useEffect(() => {
+    if (sqlToExecute) {
+      mutation.mutate(sqlToExecute);
+      onClear();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sqlToExecute]);
 
   const numericColumns = result
     ? result.columns.filter((col) =>
