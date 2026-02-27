@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import SchemaSidebar from '@/components/workspace/SchemaSidebar';
 import AIPanel from '@/components/workspace/AIPanel';
@@ -6,6 +6,29 @@ import ResultsPanel from '@/components/workspace/ResultsPanel';
 
 const Workspace = () => {
   const [pendingSQL, setPendingSQL] = useState<string | null>(null);
+
+  // Auto-execute query on first table when workspace loads
+  useEffect(() => {
+    const stored = sessionStorage.getItem('dbSchema');
+    if (stored) {
+      try {
+        const schemas = JSON.parse(stored);
+        // Find the first table in the first schema that has tables
+        for (const schema of schemas) {
+          if (schema.tables && schema.tables.length > 0) {
+            const firstTable = schema.tables[0].name;
+            const schemaName = schema.schema_name;
+            // Use schema-qualified name if not public
+            const tableName = schemaName === 'public' ? firstTable : `${schemaName}.${firstTable}`;
+            setPendingSQL(`SELECT * FROM ${tableName} LIMIT 100;`);
+            break;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to parse schema:', e);
+      }
+    }
+  }, []);
 
   return (
     <motion.div
