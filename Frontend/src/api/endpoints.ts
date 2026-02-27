@@ -40,7 +40,7 @@ export interface ExecuteResponse {
 }
 
 export const connectDatabase = (payload: ConnectionPayload) =>
-  apiClient.post<{ message: string; session_id: string }>('/api/connect', payload);
+  apiClient.post<{ success: boolean; schemas?: { schema_name: string; tables: string[] }[]; error?: string }>('/connect', payload);
 
 export const fetchSchema = () =>
   apiClient.get<{ tables: SchemaTable[] }>('/api/schema');

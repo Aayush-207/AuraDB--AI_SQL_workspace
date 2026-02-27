@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Database, Loader2, AlertCircle, Lock } from 'lucide-react';
+import { Database, Loader2, AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
 import { connectDatabase, type ConnectionPayload } from '@/api/endpoints';
 
 const Connect = () => {
@@ -16,6 +16,7 @@ const Connect = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [shaking, setShaking] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const fields: { key: keyof ConnectionPayload; label: string; type: string; placeholder: string }[] = [
     { key: 'host', label: 'Host', type: 'text', placeholder: 'localhost or db.example.com' },
@@ -33,8 +34,17 @@ const Connect = () => {
     setLoading(true);
     setError('');
     try {
-      await connectDatabase(form);
-      navigate('/workspace');
+      const response = await connectDatabase(form);
+      if (response.data.success) {
+        // Store schema in sessionStorage for workspace
+        sessionStorage.setItem('dbSchema', JSON.stringify(response.data.schemas || []));
+        sessionStorage.setItem('dbConnection', JSON.stringify(form));
+        navigate('/workspace');
+      } else {
+        setError(response.data.error || 'Connection failed');
+        setShaking(true);
+        setTimeout(() => setShaking(false), 500);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Connection failed';
       setError(msg);
@@ -80,18 +90,29 @@ const Connect = () => {
               <label className="block text-sm font-medium text-muted-foreground mb-1.5">
                 {field.label}
               </label>
-              <input
-                type={field.type}
-                placeholder={field.placeholder}
-                value={form[field.key]}
-                onChange={(e) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value,
-                  }))
-                }
-                className="w-full px-4 py-3 rounded-lg bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground/50 outline-none transition-all duration-200 focus:border-primary input-glow font-mono text-sm"
-              />
+              <div className="relative">
+                <input
+                  type={field.key === 'password' ? (showPassword ? 'text' : 'password') : field.type}
+                  placeholder={field.placeholder}
+                  value={form[field.key]}
+                  onChange={(e) =>
+                    setForm((prev) => ({
+                      ...prev,
+                      [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value,
+                    }))
+                  }
+                  className="w-full px-4 py-3 rounded-lg bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground/50 outline-none transition-all duration-200 focus:border-primary input-glow font-mono text-sm"
+                />
+                {field.key === 'password' && (
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                )}
+              </div>
             </motion.div>
           ))}
 

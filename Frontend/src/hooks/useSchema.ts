@@ -1,14 +1,21 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchSchema } from '@/api/endpoints';
+
+export interface StoredSchema {
+  schema_name: string;
+  tables: string[];
+}
 
 export const useSchema = () => {
   return useQuery({
     queryKey: ['schema'],
     queryFn: async () => {
-      const { data } = await fetchSchema();
-      return data.tables;
+      const stored = sessionStorage.getItem('dbSchema');
+      if (!stored) {
+        throw new Error('No schema found. Please connect to a database first.');
+      }
+      return JSON.parse(stored) as StoredSchema[];
     },
-    retry: 2,
-    staleTime: 5 * 60 * 1000,
+    retry: false,
+    staleTime: Infinity,
   });
 };

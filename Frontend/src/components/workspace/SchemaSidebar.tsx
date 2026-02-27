@@ -1,11 +1,10 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Table2, ChevronRight, Columns3, Loader2, AlertCircle } from 'lucide-react';
-import { useSchema } from '@/hooks/useSchema';
-import type { SchemaTable } from '@/api/endpoints';
+import { Table2, ChevronRight, Database, Loader2, AlertCircle } from 'lucide-react';
+import { useSchema, type StoredSchema } from '@/hooks/useSchema';
 
-const TableItem = ({ table }: { table: SchemaTable }) => {
-  const [open, setOpen] = useState(false);
+const SchemaItem = ({ schema }: { schema: StoredSchema }) => {
+  const [open, setOpen] = useState(true);
 
   return (
     <div>
@@ -16,10 +15,10 @@ const TableItem = ({ table }: { table: SchemaTable }) => {
         <ChevronRight
           className={`w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
         />
-        <Table2 className="w-4 h-4 text-primary flex-shrink-0" />
-        <span className="truncate font-medium">{table.name}</span>
+        <Database className="w-4 h-4 text-primary flex-shrink-0" />
+        <span className="truncate font-medium">{schema.schema_name}</span>
         <span className="ml-auto text-xs text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity">
-          {table.columns.length}
+          {schema.tables.length}
         </span>
       </button>
       <AnimatePresence>
@@ -32,11 +31,10 @@ const TableItem = ({ table }: { table: SchemaTable }) => {
             className="overflow-hidden"
           >
             <div className="ml-6 pl-3 border-l border-border/50 space-y-0.5 py-1">
-              {table.columns.map((col) => (
-                <div key={col.name} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-muted-foreground">
-                  <Columns3 className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate font-mono">{col.name}</span>
-                  <span className="ml-auto text-[10px] opacity-60">{col.type}</span>
+              {schema.tables.map((tableName) => (
+                <div key={tableName} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-muted-foreground hover:bg-muted/30 transition-colors">
+                  <Table2 className="w-3 h-3 flex-shrink-0" />
+                  <span className="truncate font-mono">{tableName}</span>
                 </div>
               ))}
             </div>
@@ -48,7 +46,7 @@ const TableItem = ({ table }: { table: SchemaTable }) => {
 };
 
 const SchemaSidebar = () => {
-  const { data: tables, isLoading, error } = useSchema();
+  const { data: schemas, isLoading, error } = useSchema();
 
   return (
     <div className="h-full flex flex-col bg-sidebar border-r border-border">
@@ -69,11 +67,11 @@ const SchemaSidebar = () => {
             <p className="text-sm text-muted-foreground">Failed to load schema</p>
           </div>
         )}
-        {tables?.map((table) => (
-          <TableItem key={`${table.schema}.${table.name}`} table={table} />
+        {schemas?.map((schema) => (
+          <SchemaItem key={schema.schema_name} schema={schema} />
         ))}
-        {tables && tables.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center p-6">No tables found</p>
+        {schemas && schemas.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center p-6">No schemas found</p>
         )}
       </div>
     </div>
