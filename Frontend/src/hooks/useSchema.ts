@@ -1,8 +1,20 @@
 import { useQuery } from '@tanstack/react-query';
 
+export interface ColumnInfo {
+  name: string;
+  type: string;
+  nullable: boolean;
+  primary_key: boolean;
+}
+
+export interface TableInfo {
+  name: string;
+  columns: ColumnInfo[];
+}
+
 export interface StoredSchema {
   schema_name: string;
-  tables: string[];
+  tables: TableInfo[];
 }
 
 export const useSchema = () => {

@@ -3,8 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import psycopg2
 from psycopg2 import OperationalError, Error
-from typing import List, Optional
+from typing import List, Optional, Any, Dict
 from contextlib import contextmanager
+import time
 
 app = FastAPI(
     title="PostgreSQL Connection Tester",
@@ -21,6 +22,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Store connection details in memory (for demo purposes)
+db_connection_store: Dict[str, Any] = {}
+
 
 class ConnectionRequest(BaseModel):
     host: str = Field(..., description="Database host address")
@@ -30,19 +34,42 @@ class ConnectionRequest(BaseModel):
     password: str = Field(..., description="Database password")
 
 
-class TableSchema(BaseModel):
+class ColumnInfo(BaseModel):
+    name: str
+    type: str
+    nullable: bool
+    primary_key: bool
+
+
+class TableInfo(BaseModel):
+    name: str
+    columns: List[ColumnInfo]
+
+
+class SchemaInfo(BaseModel):
     schema_name: str
-    tables: List[str]
+    tables: List[TableInfo]
 
 
 class ConnectionSuccessResponse(BaseModel):
     success: bool = True
-    schemas: List[TableSchema]
+    schemas: List[SchemaInfo]
 
 
 class ConnectionErrorResponse(BaseModel):
     success: bool = False
     error: str
+
+
+class ExecuteRequest(BaseModel):
+    sql: str = Field(..., description="SQL query to execute")
+
+
+class ExecuteResponse(BaseModel):
+    columns: List[str]
+    rows: List[Dict[str, Any]]
+    row_count: int
+    execution_time_ms: float
 
 
 @contextmanager
@@ -64,8 +91,8 @@ def get_db_connection(host: str, port: int, database: str, username: str, passwo
             conn.close()
 
 
-def get_schemas_and_tables(conn) -> List[TableSchema]:
-    """Fetch all non-system schemas and their tables."""
+def get_schemas_and_tables(conn) -> List[SchemaInfo]:
+    """Fetch all non-system schemas, their tables, and columns."""
     schemas_query = """
         SELECT schema_name 
         FROM information_schema.schemata 
@@ -83,6 +110,27 @@ def get_schemas_and_tables(conn) -> List[TableSchema]:
         ORDER BY table_name;
     """
     
+    columns_query = """
+        SELECT 
+            c.column_name,
+            c.data_type,
+            c.is_nullable,
+            CASE WHEN pk.column_name IS NOT NULL THEN true ELSE false END as is_primary_key
+        FROM information_schema.columns c
+        LEFT JOIN (
+            SELECT ku.column_name, ku.table_schema, ku.table_name
+            FROM information_schema.table_constraints tc
+            JOIN information_schema.key_column_usage ku
+                ON tc.constraint_name = ku.constraint_name
+                AND tc.table_schema = ku.table_schema
+            WHERE tc.constraint_type = 'PRIMARY KEY'
+        ) pk ON c.column_name = pk.column_name 
+            AND c.table_schema = pk.table_schema 
+            AND c.table_name = pk.table_name
+        WHERE c.table_schema = %s AND c.table_name = %s
+        ORDER BY c.ordinal_position;
+    """
+    
     result = []
     
     with conn.cursor() as cursor:
@@ -90,11 +138,29 @@ def get_schemas_and_tables(conn) -> List[TableSchema]:
         cursor.execute(schemas_query)
         schemas = cursor.fetchall()
         
-        # For each schema, fetch its tables
+        # For each schema, fetch its tables and columns
         for (schema_name,) in schemas:
             cursor.execute(tables_query, (schema_name,))
-            tables = [table[0] for table in cursor.fetchall()]
-            result.append(TableSchema(schema_name=schema_name, tables=tables))
+            tables = cursor.fetchall()
+            
+            table_list = []
+            for (table_name,) in tables:
+                cursor.execute(columns_query, (schema_name, table_name))
+                columns = cursor.fetchall()
+                
+                column_list = [
+                    ColumnInfo(
+                        name=col[0],
+                        type=col[1],
+                        nullable=col[2] == 'YES',
+                        primary_key=col[3]
+                    )
+                    for col in columns
+                ]
+                
+                table_list.append(TableInfo(name=table_name, columns=column_list))
+            
+            result.append(SchemaInfo(schema_name=schema_name, tables=table_list))
     
     return result
 
@@ -144,6 +210,16 @@ async def test_connection(request: ConnectionRequest):
             password=request.password
         ) as conn:
             schemas = get_schemas_and_tables(conn)
+            
+            # Store connection details for later use
+            db_connection_store['current'] = {
+                'host': request.host,
+                'port': request.port,
+                'database': request.database,
+                'username': request.username,
+                'password': request.password
+            }
+            
             return ConnectionSuccessResponse(success=True, schemas=schemas)
             
     except OperationalError as e:
@@ -155,6 +231,60 @@ async def test_connection(request: ConnectionRequest):
     
     except Exception as e:
         return ConnectionErrorResponse(success=False, error=f"Unexpected error: {str(e)}")
+
+
+@app.post("/execute")
+async def execute_sql(request: ExecuteRequest):
+    """Execute a SQL query and return results."""
+    if 'current' not in db_connection_store:
+        raise HTTPException(status_code=400, detail="No database connection. Please connect first.")
+    
+    conn_details = db_connection_store['current']
+    
+    try:
+        start_time = time.time()
+        
+        with get_db_connection(
+            host=conn_details['host'],
+            port=conn_details['port'],
+            database=conn_details['database'],
+            username=conn_details['username'],
+            password=conn_details['password']
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(request.sql)
+                
+                # Check if query returns results
+                if cursor.description:
+                    columns = [desc[0] for desc in cursor.description]
+                    rows = cursor.fetchall()
+                    
+                    # Convert rows to list of dicts
+                    row_dicts = [dict(zip(columns, row)) for row in rows]
+                    
+                    execution_time = (time.time() - start_time) * 1000
+                    
+                    return ExecuteResponse(
+                        columns=columns,
+                        rows=row_dicts,
+                        row_count=len(row_dicts),
+                        execution_time_ms=round(execution_time, 2)
+                    )
+                else:
+                    # For INSERT, UPDATE, DELETE
+                    conn.commit()
+                    execution_time = (time.time() - start_time) * 1000
+                    return ExecuteResponse(
+                        columns=[],
+                        rows=[],
+                        row_count=cursor.rowcount,
+                        execution_time_ms=round(execution_time, 2)
+                    )
+                    
+    except Error as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 @app.get("/health")

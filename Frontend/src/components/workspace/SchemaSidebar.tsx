@@ -1,7 +1,57 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Table2, ChevronRight, Database, Loader2, AlertCircle } from 'lucide-react';
-import { useSchema, type StoredSchema } from '@/hooks/useSchema';
+import { Table2, ChevronRight, Database, Loader2, AlertCircle, Columns3, Key } from 'lucide-react';
+import { useSchema, type StoredSchema, type TableInfo } from '@/hooks/useSchema';
+
+const TableItem = ({ table, schemaName }: { table: TableInfo; schemaName: string }) => {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-2 py-1.5 rounded text-xs text-muted-foreground hover:bg-muted/30 transition-colors text-left group"
+      >
+        <ChevronRight
+          className={`w-3 h-3 text-muted-foreground/60 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}
+        />
+        <Table2 className="w-3 h-3 flex-shrink-0 text-primary/70" />
+        <span className="truncate font-mono">{table.name}</span>
+        <span className="ml-auto text-[10px] text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity">
+          {table.columns.length}
+        </span>
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="overflow-hidden"
+          >
+            <div className="ml-5 pl-2 border-l border-border/30 space-y-0.5 py-1">
+              {table.columns.map((col) => (
+                <div
+                  key={col.name}
+                  className="flex items-center gap-2 px-2 py-1 rounded text-[11px] text-muted-foreground/70 hover:bg-muted/20 transition-colors"
+                >
+                  {col.primary_key ? (
+                    <Key className="w-2.5 h-2.5 flex-shrink-0 text-yellow-500" />
+                  ) : (
+                    <Columns3 className="w-2.5 h-2.5 flex-shrink-0" />
+                  )}
+                  <span className="truncate font-mono">{col.name}</span>
+                  <span className="ml-auto text-[9px] opacity-60 font-mono">{col.type}</span>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 const SchemaItem = ({ schema }: { schema: StoredSchema }) => {
   const [open, setOpen] = useState(true);
@@ -31,11 +81,8 @@ const SchemaItem = ({ schema }: { schema: StoredSchema }) => {
             className="overflow-hidden"
           >
             <div className="ml-6 pl-3 border-l border-border/50 space-y-0.5 py-1">
-              {schema.tables.map((tableName) => (
-                <div key={tableName} className="flex items-center gap-2 px-2 py-1.5 rounded text-xs text-muted-foreground hover:bg-muted/30 transition-colors">
-                  <Table2 className="w-3 h-3 flex-shrink-0" />
-                  <span className="truncate font-mono">{tableName}</span>
-                </div>
+              {schema.tables.map((table) => (
+                <TableItem key={table.name} table={table} schemaName={schema.schema_name} />
               ))}
             </div>
           </motion.div>

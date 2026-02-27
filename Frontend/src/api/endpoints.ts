@@ -49,4 +49,4 @@ export const generateSQL = (payload: GenerateSQLPayload) =>
   apiClient.post<GenerateSQLResponse>('/api/generate-sql', payload);
 
 export const executeQuery = (payload: ExecutePayload) =>
-  apiClient.post<ExecuteResponse>('/api/execute', payload);
+  apiClient.post<ExecuteResponse>('/execute', payload);
