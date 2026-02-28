@@ -2,21 +2,50 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Loader2, MessageSquare, Code, Play } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
-import { generateSQL, type GenerateSQLResponse } from '@/api/endpoints';
+import { aiQuery, type AIQueryResponse } from '@/api/endpoints';
 
 interface AIPanelProps {
   onSQLReady: (sql: string) => void;
+  onAIResults?: (results: { columns: string[]; rows: Record<string, unknown>[]; query: string }) => void;
 }
 
-const AIPanel = ({ onSQLReady }: AIPanelProps) => {
+const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
   const [prompt, setPrompt] = useState('');
   const [sqlInput, setSqlInput] = useState('');
-  const [result, setResult] = useState<GenerateSQLResponse | null>(null);
+  const [result, setResult] = useState<AIQueryResponse | null>(null);
   const [mode, setMode] = useState<'ai' | 'sql'>('ai');
 
+  const getConnectionDetails = () => {
+    const stored = sessionStorage.getItem('dbConnection');
+    if (!stored) return null;
+    return JSON.parse(stored);
+  };
+
   const mutation = useMutation({
-    mutationFn: (p: string) => generateSQL({ prompt: p }).then((r) => r.data),
-    onSuccess: (data) => setResult(data),
+    mutationFn: async (p: string) => {
+      const conn = getConnectionDetails();
+      if (!conn) throw new Error('No database connection. Please reconnect.');
+      const response = await aiQuery({
+        host: conn.host,
+        port: conn.port,
+        database: conn.database,
+        username: conn.username,
+        password: conn.password,
+        prompt: p,
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      // If we have results and a callback, send them directly
+      if (data.success && data.rows && data.columns && onAIResults) {
+        onAIResults({
+          columns: data.columns,
+          rows: data.rows,
+          query: data.query || '',
+        });
+      }
+    },
   });
 
   const handleSubmit = () => {
@@ -25,7 +54,7 @@ const AIPanel = ({ onSQLReady }: AIPanelProps) => {
   };
 
   const handleExecuteGenerated = () => {
-    if (result?.sql) onSQLReady(result.sql);
+    if (result?.query) onSQLReady(result.query);
   };
 
   const handleExecuteSQL = () => {
@@ -119,27 +148,54 @@ const AIPanel = ({ onSQLReady }: AIPanelProps) => {
                   animate={{ opacity: 1, y: 0 }}
                   className="space-y-4"
                 >
-                  {result.explanation && (
-                    <div className="glass rounded-xl p-4">
-                      <p className="text-sm text-muted-foreground leading-relaxed">{result.explanation}</p>
+                  {result.success ? (
+                    <>
+                      <div className="glass rounded-xl p-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                            Generated SQL
+                          </span>
+                          {result.query && (
+                            <button
+                              onClick={handleExecuteGenerated}
+                              className="px-3 py-1 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:brightness-110 transition-all"
+                            >
+                              Re-execute
+                            </button>
+                          )}
+                        </div>
+                        <pre className="text-sm font-mono text-foreground whitespace-pre-wrap leading-relaxed overflow-x-auto">
+                          {result.query}
+                        </pre>
+                      </div>
+                      {result.affected_rows !== undefined && (
+                        <div className="glass rounded-xl p-4">
+                          <p className="text-sm text-muted-foreground">
+                            ✓ {result.affected_rows} row(s) affected
+                          </p>
+                        </div>
+                      )}
+                      {result.rows && result.rows.length > 0 && (
+                        <div className="glass rounded-xl p-4">
+                          <p className="text-sm text-green-500">
+                            ✓ Results shown in table ({result.rows.length} rows)
+                          </p>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="glass rounded-xl p-4 border border-destructive/30">
+                      <p className="text-sm text-destructive font-medium">{result.error}</p>
+                      {result.details && (
+                        <p className="text-xs text-muted-foreground mt-2">{result.details}</p>
+                      )}
+                      {result.query && (
+                        <pre className="text-xs font-mono text-muted-foreground mt-3 p-2 bg-muted/50 rounded">
+                          {result.query}
+                        </pre>
+                      )}
                     </div>
                   )}
-                  <div className="glass rounded-xl p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Generated SQL
-                      </span>
-                      <button
-                        onClick={handleExecuteGenerated}
-                        className="px-3 py-1 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:brightness-110 transition-all"
-                      >
-                        Execute
-                      </button>
-                    </div>
-                    <pre className="text-sm font-mono text-foreground whitespace-pre-wrap leading-relaxed overflow-x-auto">
-                      {result.sql}
-                    </pre>
-                  </div>
                 </motion.div>
               )}
 

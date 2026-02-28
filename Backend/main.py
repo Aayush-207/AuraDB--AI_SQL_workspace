@@ -6,11 +6,24 @@ from psycopg2 import OperationalError, Error
 from typing import List, Optional, Any, Dict
 from contextlib import contextmanager
 import time
+import os
+import re
+from dotenv import load_dotenv
+from google import genai
+
+# Load environment variables
+load_dotenv()
+
+# Configure Gemini API
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+gemini_client = None
+if GEMINI_API_KEY:
+    gemini_client = genai.Client(api_key=GEMINI_API_KEY)
 
 app = FastAPI(
-    title="PostgreSQL Connection Tester",
-    description="API to test PostgreSQL database connections and fetch schema information",
-    version="1.0.0"
+    title="PostgreSQL AI Query API",
+    description="API for PostgreSQL connections and AI-powered SQL generation",
+    version="2.0.0"
 )
 
 # CORS configuration
@@ -70,6 +83,30 @@ class ExecuteResponse(BaseModel):
     rows: List[Dict[str, Any]]
     row_count: int
     execution_time_ms: float
+
+
+class AIQueryRequest(BaseModel):
+    host: str = Field(..., description="Database host address")
+    port: int = Field(default=5432, description="Database port")
+    database: str = Field(..., description="Database name")
+    username: str = Field(..., description="Database username")
+    password: str = Field(..., description="Database password")
+    prompt: str = Field(..., description="Natural language query")
+
+
+class AIQuerySuccessResponse(BaseModel):
+    success: bool = True
+    query: str
+    rows: Optional[List[Dict[str, Any]]] = None
+    affected_rows: Optional[int] = None
+    columns: Optional[List[str]] = None
+
+
+class AIQueryErrorResponse(BaseModel):
+    success: bool = False
+    query: Optional[str] = None
+    error: str
+    details: Optional[str] = None
 
 
 @contextmanager
@@ -285,6 +322,183 @@ async def execute_sql(request: ExecuteRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+def format_schema_for_ai(schemas: List[SchemaInfo]) -> str:
+    """Format schema information for AI context."""
+    lines = ["Database Schema:"]
+    for schema in schemas:
+        lines.append(f"\nSchema: {schema.schema_name}")
+        for table in schema.tables:
+            columns_str = ", ".join([
+                f"{col.name} ({col.type}{'[PK]' if col.primary_key else ''})"
+                for col in table.columns
+            ])
+            lines.append(f"  Table: {table.name}")
+            lines.append(f"    Columns: {columns_str}")
+    return "\n".join(lines)
+
+
+def validate_sql(sql: str) -> tuple[bool, str]:
+    """
+    Validate SQL query for safety.
+    Returns (is_valid, error_message).
+    """
+    sql_upper = sql.upper().strip()
+    
+    # Block dangerous operations
+    dangerous_patterns = [
+        r'\bDROP\s+DATABASE\b',
+        r'\bDROP\s+SCHEMA\b.*\bCASCADE\b',
+        r'\bTRUNCATE\b',
+        r'\bALTER\s+SYSTEM\b',
+    ]
+    
+    for pattern in dangerous_patterns:
+        if re.search(pattern, sql_upper):
+            return False, f"Dangerous operation detected: {pattern}"
+    
+    # Allow only specific statement types
+    allowed_prefixes = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH']
+    first_word = sql_upper.split()[0] if sql_upper.split() else ''
+    
+    if first_word not in allowed_prefixes:
+        return False, f"Only SELECT, INSERT, UPDATE, DELETE statements are allowed. Got: {first_word}"
+    
+    return True, ""
+
+
+def extract_sql_from_response(response_text: str) -> str:
+    """Extract SQL from AI response, handling markdown code blocks."""
+    # Try to extract from markdown code block
+    sql_match = re.search(r'```(?:sql)?\s*(.*?)\s*```', response_text, re.DOTALL | re.IGNORECASE)
+    if sql_match:
+        return sql_match.group(1).strip()
+    
+    # If no code block, return the entire response stripped
+    return response_text.strip()
+
+
+@app.post("/ai-query")
+async def ai_query(request: AIQueryRequest):
+    """
+    Process natural language query using AI and execute generated SQL.
+    """
+    if not gemini_client:
+        return AIQueryErrorResponse(
+            success=False,
+            error="AI service not configured",
+            details="GEMINI_API_KEY not set in environment"
+        )
+    
+    try:
+        # Connect and get schema
+        with get_db_connection(
+            host=request.host,
+            port=request.port,
+            database=request.database,
+            username=request.username,
+            password=request.password
+        ) as conn:
+            schemas = get_schemas_and_tables(conn)
+        
+        # Format schema for AI context
+        schema_context = format_schema_for_ai(schemas)
+        
+        # Build prompt for Gemini
+        ai_prompt = f"""You are a PostgreSQL SQL expert. Given the following database schema and a natural language request, generate a valid PostgreSQL SQL query.
+
+{schema_context}
+
+User request: {request.prompt}
+
+Rules:
+1. Return ONLY the SQL query, no explanations
+2. Use proper PostgreSQL syntax
+3. Include appropriate LIMIT clauses for SELECT queries (default to 100 if not specified)
+4. Use schema-qualified table names if needed (e.g., schema_name.table_name)
+5. For the "public" schema, you can omit the schema prefix
+
+SQL query:"""
+
+        # Call Gemini API
+        response = gemini_client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=ai_prompt
+        )
+        
+        if not response.text:
+            return AIQueryErrorResponse(
+                success=False,
+                error="AI failed to generate SQL",
+                details="Empty response from AI model"
+            )
+        
+        # Extract SQL from response
+        generated_sql = extract_sql_from_response(response.text)
+        
+        # Validate the generated SQL
+        is_valid, validation_error = validate_sql(generated_sql)
+        if not is_valid:
+            return AIQueryErrorResponse(
+                success=False,
+                query=generated_sql,
+                error="Generated SQL failed validation",
+                details=validation_error
+            )
+        
+        # Execute the SQL
+        with get_db_connection(
+            host=request.host,
+            port=request.port,
+            database=request.database,
+            username=request.username,
+            password=request.password
+        ) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(generated_sql)
+                
+                if cursor.description:
+                    # SELECT query - return results
+                    columns = [desc[0] for desc in cursor.description]
+                    rows = cursor.fetchall()
+                    row_dicts = [dict(zip(columns, row)) for row in rows]
+                    
+                    return AIQuerySuccessResponse(
+                        success=True,
+                        query=generated_sql,
+                        columns=columns,
+                        rows=row_dicts
+                    )
+                else:
+                    # INSERT/UPDATE/DELETE - commit and return affected rows
+                    conn.commit()
+                    return AIQuerySuccessResponse(
+                        success=True,
+                        query=generated_sql,
+                        affected_rows=cursor.rowcount
+                    )
+                    
+    except OperationalError as e:
+        error_message = parse_connection_error(e)
+        return AIQueryErrorResponse(
+            success=False,
+            error="Database connection failed",
+            details=error_message
+        )
+    except Error as e:
+        return AIQueryErrorResponse(
+            success=False,
+            query=generated_sql if 'generated_sql' in locals() else None,
+            error="SQL execution failed",
+            details=str(e)
+        )
+    except Exception as e:
+        return AIQueryErrorResponse(
+            success=False,
+            error="Unexpected error",
+            details=str(e)
+        )
 
 
 @app.get("/health")

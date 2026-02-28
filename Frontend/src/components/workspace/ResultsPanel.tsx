@@ -13,12 +13,19 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
+interface AIResultsData {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  query: string;
+}
+
 interface ResultsPanelProps {
   sqlToExecute: string | null;
+  aiResults?: AIResultsData | null;
   onClear: () => void;
 }
 
-const ResultsPanel = ({ sqlToExecute, onClear }: ResultsPanelProps) => {
+const ResultsPanel = ({ sqlToExecute, aiResults, onClear }: ResultsPanelProps) => {
   const [tab, setTab] = useState<'table' | 'chart'>('table');
   const [result, setResult] = useState<ExecuteResponse | null>(null);
 
@@ -37,19 +44,27 @@ const ResultsPanel = ({ sqlToExecute, onClear }: ResultsPanelProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sqlToExecute]);
 
-  const numericColumns = result
-    ? result.columns.filter((col) =>
-        result.rows.length > 0 && typeof result.rows[0][col] === 'number'
+  // Use AI results if available, otherwise use mutation result
+  const displayData = aiResults ? {
+    columns: aiResults.columns,
+    rows: aiResults.rows,
+    row_count: aiResults.rows.length,
+    execution_time_ms: 0, // AI results don't have execution time
+  } : result;
+
+  const numericColumns = displayData
+    ? displayData.columns.filter((col) =>
+        displayData.rows.length > 0 && typeof displayData.rows[0][col] === 'number'
       )
     : [];
 
-  const hasChart = numericColumns.length > 0 && result && result.rows.length > 0;
+  const hasChart = numericColumns.length > 0 && displayData && displayData.rows.length > 0;
 
   return (
     <div className="h-full flex flex-col border-l border-border">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <h2 className="text-sm font-semibold">Results</h2>
-        {result && (
+        {displayData && (
           <div className="flex items-center gap-1 glass rounded-lg p-0.5">
             <button
               onClick={() => setTab('table')}
@@ -90,7 +105,7 @@ const ResultsPanel = ({ sqlToExecute, onClear }: ResultsPanelProps) => {
             </motion.div>
           )}
 
-          {!mutation.isPending && !result && (
+          {!mutation.isPending && !displayData && (
             <motion.div
               key="empty"
               initial={{ opacity: 0 }}
@@ -104,7 +119,7 @@ const ResultsPanel = ({ sqlToExecute, onClear }: ResultsPanelProps) => {
             </motion.div>
           )}
 
-          {!mutation.isPending && result && tab === 'table' && (
+          {!mutation.isPending && displayData && tab === 'table' && (
             <motion.div
               key="table"
               initial={{ opacity: 0, y: 10 }}
@@ -112,17 +127,22 @@ const ResultsPanel = ({ sqlToExecute, onClear }: ResultsPanelProps) => {
               className="space-y-3"
             >
               <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <span>{result.row_count} row{result.row_count !== 1 ? 's' : ''}</span>
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {result.execution_time_ms}ms
-                </span>
+                <span>{displayData.row_count} row{displayData.row_count !== 1 ? 's' : ''}</span>
+                {displayData.execution_time_ms > 0 && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {displayData.execution_time_ms}ms
+                  </span>
+                )}
+                {aiResults && (
+                  <span className="text-primary">AI Generated</span>
+                )}
               </div>
               <div className="overflow-x-auto rounded-xl border border-border">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border bg-muted/30">
-                      {result.columns.map((col) => (
+                      {displayData.columns.map((col) => (
                         <th key={col} className="px-4 py-2.5 text-left font-medium text-muted-foreground text-xs uppercase tracking-wider whitespace-nowrap">
                           {col}
                         </th>
@@ -130,9 +150,9 @@ const ResultsPanel = ({ sqlToExecute, onClear }: ResultsPanelProps) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {result.rows.map((row, i) => (
+                    {displayData.rows.map((row, i) => (
                       <tr key={i} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
-                        {result.columns.map((col) => (
+                        {displayData.columns.map((col) => (
                           <td key={col} className="px-4 py-2.5 font-mono text-xs whitespace-nowrap">
                             {String(row[col] ?? 'NULL')}
                           </td>
@@ -145,7 +165,7 @@ const ResultsPanel = ({ sqlToExecute, onClear }: ResultsPanelProps) => {
             </motion.div>
           )}
 
-          {!mutation.isPending && result && tab === 'chart' && hasChart && (
+          {!mutation.isPending && displayData && tab === 'chart' && hasChart && (
             <motion.div
               key="chart"
               initial={{ opacity: 0, y: 10 }}
@@ -153,10 +173,10 @@ const ResultsPanel = ({ sqlToExecute, onClear }: ResultsPanelProps) => {
               className="h-80"
             >
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={result.rows as Record<string, unknown>[]} >
+                <BarChart data={displayData.rows as Record<string, unknown>[]} >
                   <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 30% 18%)" />
                   <XAxis
-                    dataKey={result.columns.find((c) => !numericColumns.includes(c)) || result.columns[0]}
+                    dataKey={displayData.columns.find((c) => !numericColumns.includes(c)) || displayData.columns[0]}
                     stroke="hsl(215 20% 55%)"
                     fontSize={11}
                     tickLine={false}

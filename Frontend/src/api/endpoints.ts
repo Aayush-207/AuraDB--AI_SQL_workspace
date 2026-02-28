@@ -28,6 +28,25 @@ export interface GenerateSQLResponse {
   explanation: string;
 }
 
+export interface AIQueryPayload {
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  password: string;
+  prompt: string;
+}
+
+export interface AIQueryResponse {
+  success: boolean;
+  query?: string;
+  rows?: Record<string, unknown>[];
+  columns?: string[];
+  affected_rows?: number;
+  error?: string;
+  details?: string;
+}
+
 export interface ExecutePayload {
   sql: string;
 }
@@ -47,6 +66,9 @@ export const fetchSchema = () =>
 
 export const generateSQL = (payload: GenerateSQLPayload) =>
   apiClient.post<GenerateSQLResponse>('/api/generate-sql', payload);
+
+export const aiQuery = (payload: AIQueryPayload) =>
+  apiClient.post<AIQueryResponse>('/ai-query', payload);
 
 export const executeQuery = (payload: ExecutePayload) =>
   apiClient.post<ExecuteResponse>('/execute', payload);

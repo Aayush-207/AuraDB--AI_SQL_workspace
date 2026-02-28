@@ -4,8 +4,15 @@ import SchemaSidebar from '@/components/workspace/SchemaSidebar';
 import AIPanel from '@/components/workspace/AIPanel';
 import ResultsPanel from '@/components/workspace/ResultsPanel';
 
+interface AIResultsData {
+  columns: string[];
+  rows: Record<string, unknown>[];
+  query: string;
+}
+
 const Workspace = () => {
   const [pendingSQL, setPendingSQL] = useState<string | null>(null);
+  const [aiResults, setAIResults] = useState<AIResultsData | null>(null);
 
   // Auto-execute query on first table when workspace loads
   useEffect(() => {
@@ -30,6 +37,11 @@ const Workspace = () => {
     }
   }, []);
 
+  const handleAIResults = (results: AIResultsData) => {
+    setAIResults(results);
+    setPendingSQL(null); // Clear any pending SQL execution
+  };
+
   return (
     <motion.div
       className="h-screen flex bg-background"
@@ -44,14 +56,24 @@ const Workspace = () => {
 
       {/* AI Panel */}
       <div className="flex-1 min-w-0">
-        <AIPanel onSQLReady={(sql) => setPendingSQL(sql)} />
+        <AIPanel 
+          onSQLReady={(sql) => {
+            setAIResults(null);
+            setPendingSQL(sql);
+          }} 
+          onAIResults={handleAIResults}
+        />
       </div>
 
       {/* Results Panel */}
       <div className="w-[45%] flex-shrink-0">
         <ResultsPanel
           sqlToExecute={pendingSQL}
-          onClear={() => setPendingSQL(null)}
+          aiResults={aiResults}
+          onClear={() => {
+            setPendingSQL(null);
+            setAIResults(null);
+          }}
         />
       </div>
     </motion.div>
