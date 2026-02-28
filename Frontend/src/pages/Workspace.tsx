@@ -6,6 +6,7 @@ import ResultsPanel from '@/components/workspace/ResultsPanel';
 import TopBar from '@/components/workspace/TopBar';
 import StatusBar from '@/components/workspace/StatusBar';
 import TerminalPanel, { type LogEntry } from '@/components/workspace/TerminalPanel';
+import { executeQuery } from '@/api/endpoints';
 
 interface AIResultsData {
   columns: string[];
@@ -13,9 +14,15 @@ interface AIResultsData {
   query: string;
 }
 
+interface ResultsData {
+  columns: string[];
+  rows: Record<string, unknown>[];
+}
+
 const Workspace = () => {
   const [pendingSQL, setPendingSQL] = useState<string | null>(null);
   const [aiResults, setAIResults] = useState<AIResultsData | null>(null);
+  const [currentResults, setCurrentResults] = useState<ResultsData | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [safeMode, setSafeMode] = useState(() => {
@@ -38,6 +45,81 @@ const Workspace = () => {
   const clearLogs = useCallback(() => {
     setLogs([]);
   }, []);
+
+  // Track results when they change
+  const handleResultsUpdate = useCallback((results: ResultsData | null) => {
+    setCurrentResults(results);
+  }, []);
+
+  // Transaction controls
+  const executeTransactionSQL = useCallback(async (sql: string, successMsg: string, errorMsg: string) => {
+    try {
+      await executeQuery({ sql });
+      addLog('success', successMsg);
+    } catch (error) {
+      const errorDetail = error instanceof Error ? error.message : String(error);
+      addLog('error', errorMsg, errorDetail);
+    }
+  }, [addLog]);
+
+  const handleRollback = useCallback(() => {
+    executeTransactionSQL('ROLLBACK;', 'Transaction rolled back', 'Rollback failed');
+  }, [executeTransactionSQL]);
+
+  const handleBeginTransaction = useCallback(() => {
+    executeTransactionSQL('BEGIN;', 'Transaction started', 'Failed to start transaction');
+  }, [executeTransactionSQL]);
+
+  const handleCommit = useCallback(() => {
+    executeTransactionSQL('COMMIT;', 'Transaction committed', 'Commit failed');
+  }, [executeTransactionSQL]);
+
+  // Export results as CSV
+  const handleExport = useCallback(() => {
+    if (!currentResults || !currentResults.columns.length || !currentResults.rows.length) {
+      addLog('warning', 'No results to export');
+      return;
+    }
+
+    const { columns, rows } = currentResults;
+    
+    // Build CSV content
+    const escapeCsv = (value: unknown): string => {
+      if (value === null || value === undefined) return '';
+      const str = String(value);
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+
+    const csvHeader = columns.map(escapeCsv).join(',');
+    const csvRows = rows.map(row => 
+      columns.map(col => escapeCsv(row[col])).join(',')
+    );
+    const csvContent = [csvHeader, ...csvRows].join('\n');
+
+    // Create download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `query_results_${new Date().toISOString().slice(0, 19).replace(/[:-]/g, '')}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    addLog('success', `Exported ${rows.length} rows to CSV`);
+  }, [currentResults, addLog]);
+
+  // Clear results
+  const handleClearResults = useCallback(() => {
+    setPendingSQL(null);
+    setAIResults(null);
+    setCurrentResults(null);
+    addLog('info', 'Results cleared');
+  }, [addLog]);
 
   // Initial connection log
   useEffect(() => {
@@ -117,6 +199,12 @@ const Workspace = () => {
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         safeMode={safeMode}
         onToggleSafeMode={handleToggleSafeMode}
+        onRollback={handleRollback}
+        onBeginTransaction={handleBeginTransaction}
+        onCommit={handleCommit}
+        onExport={handleExport}
+        onClear={handleClearResults}
+        hasResults={currentResults !== null && currentResults.rows.length > 0}
       />
 
       {/* Main Content */}
@@ -155,6 +243,7 @@ const Workspace = () => {
                 setAIResults(null);
               }}
               onLog={addLog}
+              onResultsUpdate={handleResultsUpdate}
             />
           </div>
           <TerminalPanel logs={logs} onClearLogs={clearLogs} />

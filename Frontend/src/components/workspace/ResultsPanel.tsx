@@ -25,9 +25,10 @@ interface ResultsPanelProps {
   aiResults?: AIResultsData | null;
   onClear: () => void;
   onLog?: (type: LogEntry['type'], message: string, details?: string) => void;
+  onResultsUpdate?: (results: { columns: string[]; rows: Record<string, unknown>[] } | null) => void;
 }
 
-const ResultsPanel = ({ sqlToExecute, aiResults, onClear, onLog }: ResultsPanelProps) => {
+const ResultsPanel = ({ sqlToExecute, aiResults, onClear, onLog, onResultsUpdate }: ResultsPanelProps) => {
   const [tab, setTab] = useState<'table' | 'chart'>('table');
   const [result, setResult] = useState<ExecuteResponse | null>(null);
   const [lastQuery, setLastQuery] = useState<string | null>(null);
@@ -62,6 +63,15 @@ const ResultsPanel = ({ sqlToExecute, aiResults, onClear, onLog }: ResultsPanelP
     row_count: aiResults.rows.length,
     execution_time_ms: 0, // AI results don't have execution time
   } : result;
+
+  // Notify parent of results changes
+  useEffect(() => {
+    if (displayData) {
+      onResultsUpdate?.({ columns: displayData.columns, rows: displayData.rows });
+    } else {
+      onResultsUpdate?.(null);
+    }
+  }, [displayData, onResultsUpdate]);
 
   const numericColumns = displayData
     ? displayData.columns.filter((col) =>
