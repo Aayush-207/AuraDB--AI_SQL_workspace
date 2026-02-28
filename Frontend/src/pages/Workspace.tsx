@@ -93,11 +93,13 @@ const Workspace = () => {
       <div className="flex-1 flex min-h-0">
         {/* Schema Sidebar */}
         <motion.div 
-          className="flex-shrink-0"
+          className="flex-shrink-0 overflow-hidden"
           animate={{ width: sidebarCollapsed ? 0 : 256 }}
           transition={{ duration: 0.2 }}
         >
-          <SchemaSidebar collapsed={sidebarCollapsed} />
+          <div className="w-64 h-full">
+            <SchemaSidebar collapsed={sidebarCollapsed} />
+          </div>
         </motion.div>
 
         {/* AI Panel */}

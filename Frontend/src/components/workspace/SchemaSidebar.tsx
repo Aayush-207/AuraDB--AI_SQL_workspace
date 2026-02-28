@@ -180,14 +180,6 @@ const SafeModeWarningModal = ({
 const SchemaSidebar = ({ collapsed = false }: SchemaSidebarProps) => {
   const { data: schemas, isLoading, error } = useSchema();
 
-  if (collapsed) {
-    return (
-      <div className="h-full flex flex-col bg-sidebar border-r border-border w-12">
-        <div className="flex-1" />
-      </div>
-    );
-  }
-
   return (
     <div className="h-full flex flex-col bg-sidebar border-r border-border">
       <div className="px-3 py-3 border-b border-border flex items-center gap-2">

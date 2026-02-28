@@ -141,42 +141,58 @@ const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
         </div>
       </div>
 
-      {mode === 'sql' ? (
-        <div className="flex-1 flex flex-col">
-          <div className="flex-1 p-4">
-            <div className="h-full glass rounded-xl p-4 flex flex-col">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  SQL Query
-                </span>
-                <button
-                  onClick={handleExecuteSQL}
-                  disabled={!sqlInput.trim()}
-                  className="px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:brightness-110 transition-all disabled:opacity-30 flex items-center gap-1.5"
-                >
-                  <Play className="w-3 h-3" />
-                  Execute
-                </button>
+      <div className="flex-1 overflow-hidden relative">
+        <AnimatePresence mode="wait" initial={false}>
+          {mode === 'sql' ? (
+            <motion.div
+              key="sql"
+              initial={{ x: '100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '100%', opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="absolute inset-0 flex flex-col"
+            >
+              <div className="flex-1 p-4">
+                <div className="h-full glass rounded-xl p-4 flex flex-col">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      SQL Query
+                    </span>
+                    <button
+                      onClick={handleExecuteSQL}
+                      disabled={!sqlInput.trim()}
+                      className="px-3 py-1.5 rounded-md text-xs font-medium bg-primary text-primary-foreground hover:brightness-110 transition-all disabled:opacity-30 flex items-center gap-1.5"
+                    >
+                      <Play className="w-3 h-3" />
+                      Execute
+                    </button>
+                  </div>
+                  <textarea
+                    value={sqlInput}
+                    onChange={(e) => setSqlInput(e.target.value)}
+                    placeholder="SELECT * FROM customers;"
+                    className="flex-1 w-full bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/50 resize-none leading-relaxed"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                        handleExecuteSQL();
+                      }
+                    }}
+                  />
+                  <p className="text-[10px] text-muted-foreground/50 mt-2">
+                    Press Ctrl+Enter to execute
+                  </p>
+                </div>
               </div>
-              <textarea
-                value={sqlInput}
-                onChange={(e) => setSqlInput(e.target.value)}
-                placeholder="SELECT * FROM customers;"
-                className="flex-1 w-full bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/50 resize-none leading-relaxed"
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
-                    handleExecuteSQL();
-                  }
-                }}
-              />
-              <p className="text-[10px] text-muted-foreground/50 mt-2">
-                Press Ctrl+Enter to execute
-              </p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="ai"
+              initial={{ x: '-100%', opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: '-100%', opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="absolute inset-0 flex flex-col"
+            >
           {/* Chat Messages Area */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && !mutation.isPending && (
@@ -335,8 +351,10 @@ const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
               </button>
             </div>
           </div>
-        </>
-      )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };
