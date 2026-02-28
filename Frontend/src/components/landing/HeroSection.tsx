@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Sparkles } from 'lucide-react';
+import { ArrowRight, Sparkles, Database } from 'lucide-react';
 
 const HeroSection = () => {
   const navigate = useNavigate();
@@ -43,7 +43,24 @@ const HeroSection = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.15 }}
         >
-          <span className="text-gradient">AuraDB</span>
+          <span className="inline-flex items-center gap-3 md:gap-4">
+            <motion.div
+              animate={{ rotate: [0, 360] }}
+              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+              className="relative"
+            >
+              <motion.div
+                animate={{ 
+                  scale: [1, 1.2, 1],
+                  opacity: [0.5, 0.8, 0.5]
+                }}
+                transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute inset-0 bg-primary/30 rounded-full blur-xl"
+              />
+              <Database className="w-12 h-12 md:w-16 md:h-16 text-primary relative z-10" />
+            </motion.div>
+            <span className="text-gradient">AuraDB</span>
+          </span>
           <br />
           <span className="text-foreground/70 text-4xl md:text-5xl">AI-Powered SQL Workspace</span>
         </motion.h1>

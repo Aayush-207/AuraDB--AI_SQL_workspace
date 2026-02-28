@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Loader2, MessageSquare, Code, Play, Bot, User } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
@@ -25,6 +25,20 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [mode, setMode] = useState<'ai' | 'sql'>('ai');
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      const newHeight = Math.min(textarea.scrollHeight, 120); // Max 120px (about 5 lines)
+      textarea.style.height = `${newHeight}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [prompt, adjustTextareaHeight]);
 
   const scrollToBottom = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -214,9 +228,24 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
                 animate={{ opacity: 1 }}
                 className="flex flex-col items-center justify-center h-full text-center"
               >
-                <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4">
+                <motion.div 
+                  className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center mb-4 relative"
+                  animate={{ 
+                    scale: [1, 1.1, 1],
+                    boxShadow: [
+                      '0 0 0 0 rgba(59, 130, 246, 0)',
+                      '0 0 20px 8px rgba(59, 130, 246, 0.3)',
+                      '0 0 0 0 rgba(59, 130, 246, 0)'
+                    ]
+                  }}
+                  transition={{ 
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: 'easeInOut'
+                  }}
+                >
                   <MessageSquare className="w-7 h-7 text-primary" />
-                </div>
+                </motion.div>
                 <p className="text-muted-foreground text-sm">
                   Start a conversation about your database
                 </p>
@@ -342,19 +371,26 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
 
           {/* Input Area */}
           <div className="p-4 border-t border-border">
-            <div className="flex items-center gap-2 glass rounded-xl px-4 py-2">
-              <input
-                type="text"
+            <div className="flex items-end gap-2 glass rounded-xl px-4 py-2">
+              <textarea
+                ref={textareaRef}
                 placeholder="Ask anything about your database..."
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
-                className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/50"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSubmit();
+                  }
+                }}
+                rows={1}
+                className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/50 resize-none max-h-[120px] leading-relaxed py-1"
+                style={{ height: 'auto' }}
               />
               <button
                 onClick={handleSubmit}
                 disabled={!prompt.trim() || mutation.isPending}
-                className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-30 hover:brightness-110 transition-all"
+                className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-30 hover:brightness-110 transition-all flex-shrink-0"
               >
                 {mutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -363,6 +399,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
                 )}
               </button>
             </div>
+            <p className="text-[10px] text-muted-foreground/50 mt-1 px-1">Press Enter to send, Shift+Enter for new line</p>
           </div>
             </motion.div>
           )}
