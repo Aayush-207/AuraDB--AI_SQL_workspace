@@ -92,6 +92,7 @@ class AIQueryRequest(BaseModel):
     username: str = Field(..., description="Database username")
     password: str = Field(..., description="Database password")
     prompt: str = Field(..., description="Natural language query")
+    safe_mode: bool = Field(default=True, description="Whether to block dangerous SQL operations")
 
 
 class AIQuerySuccessResponse(BaseModel):
@@ -339,31 +340,39 @@ def format_schema_for_ai(schemas: List[SchemaInfo]) -> str:
     return "\n".join(lines)
 
 
-def validate_sql(sql: str) -> tuple[bool, str]:
+def validate_sql(sql: str, safe_mode: bool = True) -> tuple[bool, str]:
     """
     Validate SQL query for safety.
     Returns (is_valid, error_message).
     """
     sql_upper = sql.upper().strip()
     
-    # Block dangerous operations
-    dangerous_patterns = [
-        r'\bDROP\s+DATABASE\b',
-        r'\bDROP\s+SCHEMA\b.*\bCASCADE\b',
-        r'\bTRUNCATE\b',
-        r'\bALTER\s+SYSTEM\b',
-    ]
-    
-    for pattern in dangerous_patterns:
-        if re.search(pattern, sql_upper):
-            return False, f"Dangerous operation detected: {pattern}"
-    
-    # Allow only specific statement types
-    allowed_prefixes = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH']
-    first_word = sql_upper.split()[0] if sql_upper.split() else ''
-    
-    if first_word not in allowed_prefixes:
-        return False, f"Only SELECT, INSERT, UPDATE, DELETE statements are allowed. Got: {first_word}"
+    if safe_mode:
+        # Block dangerous operations in safe mode
+        dangerous_patterns = [
+            (r'\bDROP\s+DATABASE\b', 'DROP DATABASE'),
+            (r'\bDROP\s+TABLE\b', 'DROP TABLE'),
+            (r'\bDROP\s+SCHEMA\b', 'DROP SCHEMA'),
+            (r'\bTRUNCATE\b', 'TRUNCATE'),
+            (r'\bALTER\s+SYSTEM\b', 'ALTER SYSTEM'),
+            (r'\bALTER\s+TABLE\b', 'ALTER TABLE'),
+            (r'\bDELETE\s+FROM\b(?!\s*\S+\s+WHERE)', 'DELETE without WHERE clause'),
+        ]
+        
+        for pattern, name in dangerous_patterns:
+            if re.search(pattern, sql_upper):
+                return False, f"Blocked in Safe Mode: {name}. Disable Safe Mode to execute this query."
+        
+        # In safe mode, only allow SELECT, INSERT, UPDATE (with WHERE), DELETE (with WHERE)
+        allowed_prefixes = ['SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH']
+        first_word = sql_upper.split()[0] if sql_upper.split() else ''
+        
+        if first_word not in allowed_prefixes:
+            return False, f"Only SELECT, INSERT, UPDATE, DELETE statements are allowed in Safe Mode. Got: {first_word}"
+        
+        # Check DELETE has WHERE clause
+        if first_word == 'DELETE' and 'WHERE' not in sql_upper:
+            return False, "DELETE without WHERE clause is blocked in Safe Mode. Disable Safe Mode to execute this query."
     
     return True, ""
 
@@ -460,7 +469,7 @@ SQL query:"""
         generated_sql = extract_sql_from_response(response.text)
         
         # Validate the generated SQL
-        is_valid, validation_error = validate_sql(generated_sql)
+        is_valid, validation_error = validate_sql(generated_sql, request.safe_mode)
         if not is_valid:
             return AIQueryErrorResponse(
                 success=False,

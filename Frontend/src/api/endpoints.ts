@@ -35,6 +35,7 @@ export interface AIQueryPayload {
   username: string;
   password: string;
   prompt: string;
+  safe_mode?: boolean;
 }
 
 export interface AIQueryResponse {

@@ -38,6 +38,11 @@ const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
     return JSON.parse(stored);
   };
 
+  const getSafeMode = () => {
+    const stored = sessionStorage.getItem('safeMode');
+    return stored !== 'false'; // Default to true
+  };
+
   const mutation = useMutation({
     mutationFn: async (p: string) => {
       const conn = getConnectionDetails();
@@ -49,6 +54,7 @@ const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
         username: conn.username,
         password: conn.password,
         prompt: p,
+        safe_mode: getSafeMode(),
       });
       return response.data;
     },

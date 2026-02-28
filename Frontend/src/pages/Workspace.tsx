@@ -13,6 +13,7 @@ interface AIResultsData {
 const Workspace = () => {
   const [pendingSQL, setPendingSQL] = useState<string | null>(null);
   const [aiResults, setAIResults] = useState<AIResultsData | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Auto-execute query on first table when workspace loads
   useEffect(() => {
@@ -50,9 +51,16 @@ const Workspace = () => {
       transition={{ duration: 0.3 }}
     >
       {/* Schema Sidebar */}
-      <div className="w-64 flex-shrink-0">
-        <SchemaSidebar />
-      </div>
+      <motion.div 
+        className="flex-shrink-0"
+        animate={{ width: sidebarCollapsed ? 48 : 256 }}
+        transition={{ duration: 0.2 }}
+      >
+        <SchemaSidebar 
+          collapsed={sidebarCollapsed} 
+          onCollapsedChange={setSidebarCollapsed} 
+        />
+      </motion.div>
 
       {/* AI Panel */}
       <div className="flex-1 min-w-0">
