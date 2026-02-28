@@ -214,16 +214,6 @@ const ResultsPanel = ({ sqlToExecute, aiResults, onClear, onLog }: ResultsPanelP
             </motion.div>
           )}
         </AnimatePresence>
-
-        {mutation.error && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-sm text-destructive p-3 rounded-lg bg-destructive/10 border border-destructive/20 mt-4"
-          >
-            {mutation.error.message}
-          </motion.div>
-        )}
       </div>
     </div>
   );

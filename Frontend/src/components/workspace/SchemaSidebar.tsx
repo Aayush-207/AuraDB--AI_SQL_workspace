@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Table2, ChevronRight, Database, Loader2, AlertCircle, Columns3, Key, AlertTriangle, X } from 'lucide-react';
+import { Table2, ChevronRight, Database, Loader2, AlertCircle, Columns3, Key, AlertTriangle, X, RefreshCw } from 'lucide-react';
 import { useSchema, type StoredSchema, type TableInfo } from '@/hooks/useSchema';
+import { useQueryClient } from '@tanstack/react-query';
+import { connectDatabase } from '@/api/endpoints';
 
 interface SchemaSidebarProps {
   collapsed?: boolean;
@@ -179,11 +181,40 @@ const SafeModeWarningModal = ({
 
 const SchemaSidebar = ({ collapsed = false }: SchemaSidebarProps) => {
   const { data: schemas, isLoading, error } = useSchema();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    const stored = sessionStorage.getItem('dbConnection');
+    if (!stored) return;
+    
+    try {
+      setIsRefreshing(true);
+      const conn = JSON.parse(stored);
+      const response = await connectDatabase(conn);
+      if (response.data.success) {
+        sessionStorage.setItem('dbSchema', JSON.stringify(response.data.schemas || []));
+        queryClient.invalidateQueries({ queryKey: ['schema'] });
+      }
+    } catch (e) {
+      console.error('Failed to refresh schema:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   return (
     <div className="h-full flex flex-col bg-sidebar border-r border-border">
-      <div className="px-3 py-3 border-b border-border flex items-center gap-2">
+      <div className="px-3 py-3 border-b border-border flex items-center justify-between">
         <h2 className="text-sm font-semibold text-sidebar-foreground">Schema Explorer</h2>
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="w-6 h-6 rounded flex items-center justify-center hover:bg-muted/50 transition-colors disabled:opacity-50"
+          title="Refresh schema"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`} />
+        </button>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
         {isLoading && (
