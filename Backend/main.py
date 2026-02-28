@@ -423,7 +423,7 @@ SQL query:"""
 
         # Call Gemini API
         response = gemini_client.models.generate_content(
-            model='gemini-2.0-flash',
+            model='gemini-flash-latest',
             contents=ai_prompt
         )
         
