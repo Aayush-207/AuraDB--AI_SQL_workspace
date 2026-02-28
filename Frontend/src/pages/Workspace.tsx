@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import SchemaSidebar, { SafeModeWarningModal } from '@/components/workspace/SchemaSidebar';
 import AIPanel from '@/components/workspace/AIPanel';
 import ResultsPanel from '@/components/workspace/ResultsPanel';
 import TopBar from '@/components/workspace/TopBar';
 import StatusBar from '@/components/workspace/StatusBar';
+import TerminalPanel, { type LogEntry } from '@/components/workspace/TerminalPanel';
 
 interface AIResultsData {
   columns: string[];
@@ -16,11 +17,40 @@ const Workspace = () => {
   const [pendingSQL, setPendingSQL] = useState<string | null>(null);
   const [aiResults, setAIResults] = useState<AIResultsData | null>(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
   const [safeMode, setSafeMode] = useState(() => {
     const stored = sessionStorage.getItem('safeMode');
     return stored !== 'false'; // Default to true
   });
   const [showSafeModeWarning, setShowSafeModeWarning] = useState(false);
+
+  const addLog = useCallback((type: LogEntry['type'], message: string, details?: string) => {
+    const newLog: LogEntry = {
+      id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      message,
+      details,
+      timestamp: new Date(),
+    };
+    setLogs(prev => [...prev, newLog]);
+  }, []);
+
+  const clearLogs = useCallback(() => {
+    setLogs([]);
+  }, []);
+
+  // Initial connection log
+  useEffect(() => {
+    const connection = sessionStorage.getItem('dbConnection');
+    if (connection) {
+      try {
+        const conn = JSON.parse(connection);
+        addLog('success', `Connected to ${conn.database}@${conn.host}:${conn.port}`);
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, [addLog]);
 
   // Persist Safe Mode setting
   useEffect(() => {
@@ -110,19 +140,24 @@ const Workspace = () => {
               setPendingSQL(sql);
             }} 
             onAIResults={handleAIResults}
+            onLog={addLog}
           />
         </div>
 
-        {/* Results Panel */}
-        <div className="w-[45%] flex-shrink-0">
-          <ResultsPanel
-            sqlToExecute={pendingSQL}
-            aiResults={aiResults}
-            onClear={() => {
-              setPendingSQL(null);
-              setAIResults(null);
-            }}
-          />
+        {/* Results Panel + Terminal */}
+        <div className="w-[45%] flex-shrink-0 flex flex-col">
+          <div className="flex-1 min-h-0">
+            <ResultsPanel
+              sqlToExecute={pendingSQL}
+              aiResults={aiResults}
+              onClear={() => {
+                setPendingSQL(null);
+                setAIResults(null);
+              }}
+              onLog={addLog}
+            />
+          </div>
+          <TerminalPanel logs={logs} onClearLogs={clearLogs} />
         </div>
       </div>
 

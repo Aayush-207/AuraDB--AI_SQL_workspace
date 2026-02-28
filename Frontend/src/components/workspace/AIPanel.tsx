@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Send, Loader2, MessageSquare, Code, Play, Bot, User } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { aiQuery, type AIQueryResponse } from '@/api/endpoints';
+import type { LogEntry } from './TerminalPanel';
 
 interface ChatMessage {
   id: string;
@@ -15,9 +16,10 @@ interface ChatMessage {
 interface AIPanelProps {
   onSQLReady: (sql: string) => void;
   onAIResults?: (results: { columns: string[]; rows: Record<string, unknown>[]; query: string }) => void;
+  onLog?: (type: LogEntry['type'], message: string, details?: string) => void;
 }
 
-const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
+const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
   const [prompt, setPrompt] = useState('');
   const [sqlInput, setSqlInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -47,6 +49,7 @@ const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
     mutationFn: async (p: string) => {
       const conn = getConnectionDetails();
       if (!conn) throw new Error('No database connection. Please reconnect.');
+      onLog?.('info', `AI query: "${p.substring(0, 50)}${p.length > 50 ? '...' : ''}"`);
       const response = await aiQuery({
         host: conn.host,
         port: conn.port,
@@ -69,6 +72,13 @@ const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
       };
       setMessages(prev => [...prev, aiMessage]);
 
+      // Log the result
+      if (data.success) {
+        onLog?.('success', `AI generated SQL executed: ${data.rows?.length || 0} row(s)`);
+      } else {
+        onLog?.('error', 'AI query failed', `Prompt: ${variables}\n\nError: ${data.error || 'Unknown error'}\n\nGenerated SQL: ${data.query || 'None'}`);
+      }
+
       // If we have results and a callback, send them directly
       if (data.success && data.rows && data.columns && onAIResults) {
         onAIResults({
@@ -78,7 +88,7 @@ const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
         });
       }
     },
-    onError: (error) => {
+    onError: (error, variables) => {
       const aiMessage: ChatMessage = {
         id: `ai-${Date.now()}`,
         type: 'ai',
@@ -87,6 +97,7 @@ const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
         aiResponse: { success: false, error: error.message },
       };
       setMessages(prev => [...prev, aiMessage]);
+      onLog?.('error', 'AI query request failed', `Prompt: ${variables}\n\nError: ${error.message}`);
     },
   });
 
@@ -108,10 +119,12 @@ const AIPanel = ({ onSQLReady, onAIResults }: AIPanelProps) => {
 
   const handleExecuteSQL = () => {
     if (!sqlInput.trim()) return;
+    onLog?.('info', `Executing SQL: ${sqlInput.trim().substring(0, 80)}${sqlInput.trim().length > 80 ? '...' : ''}`);
     onSQLReady(sqlInput.trim());
   };
 
   const handleReExecute = (query: string) => {
+    onLog?.('info', `Re-executing SQL: ${query.substring(0, 80)}${query.length > 80 ? '...' : ''}`);
     onSQLReady(query);
   };
 

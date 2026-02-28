@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Table, BarChart3, Loader2, Inbox, Clock } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { executeQuery, type ExecuteResponse } from '@/api/endpoints';
+import type { LogEntry } from './TerminalPanel';
 import {
   BarChart,
   Bar,
@@ -23,16 +24,26 @@ interface ResultsPanelProps {
   sqlToExecute: string | null;
   aiResults?: AIResultsData | null;
   onClear: () => void;
+  onLog?: (type: LogEntry['type'], message: string, details?: string) => void;
 }
 
-const ResultsPanel = ({ sqlToExecute, aiResults, onClear }: ResultsPanelProps) => {
+const ResultsPanel = ({ sqlToExecute, aiResults, onClear, onLog }: ResultsPanelProps) => {
   const [tab, setTab] = useState<'table' | 'chart'>('table');
   const [result, setResult] = useState<ExecuteResponse | null>(null);
+  const [lastQuery, setLastQuery] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: (sql: string) => executeQuery({ sql }).then((r) => r.data),
+    mutationFn: (sql: string) => {
+      setLastQuery(sql);
+      return executeQuery({ sql }).then((r) => r.data);
+    },
     onSuccess: (data) => {
       setResult(data);
+      onLog?.('success', `Query executed: ${data.row_count} row(s) in ${data.execution_time_ms}ms`);
+    },
+    onError: (error: Error) => {
+      const errorMessage = error.message || 'Unknown error';
+      onLog?.('error', 'Query execution failed', `Query: ${lastQuery}\n\nError: ${errorMessage}`);
     },
   });
 
