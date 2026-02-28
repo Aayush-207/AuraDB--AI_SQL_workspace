@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Database, Loader2, AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
@@ -17,6 +17,10 @@ const Connect = () => {
   const [error, setError] = useState('');
   const [shaking, setShaking] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showHostSuggestion, setShowHostSuggestion] = useState(false);
+  const [showUsernameSuggestion, setShowUsernameSuggestion] = useState(false);
+  const hostInputRef = useRef<HTMLInputElement>(null);
+  const usernameInputRef = useRef<HTMLInputElement>(null);
 
   const fields: { key: keyof ConnectionPayload; label: string; type: string; placeholder: string }[] = [
     { key: 'host', label: 'Host', type: 'text', placeholder: 'localhost or db.example.com' },
@@ -27,6 +31,15 @@ const Connect = () => {
   ];
 
   const isValid = form.host && form.database && form.username && form.password && form.port > 0;
+
+  const handleSuggestionClick = (field: 'host' | 'username', value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    if (field === 'host') {
+      setShowHostSuggestion(false);
+    } else {
+      setShowUsernameSuggestion(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,6 +105,7 @@ const Connect = () => {
               </label>
               <div className="relative">
                 <input
+                  ref={field.key === 'host' ? hostInputRef : field.key === 'username' ? usernameInputRef : undefined}
                   type={field.key === 'password' ? (showPassword ? 'text' : 'password') : field.type}
                   placeholder={field.placeholder}
                   value={form[field.key]}
@@ -101,8 +115,40 @@ const Connect = () => {
                       [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value,
                     }))
                   }
+                  onFocus={() => {
+                    if (field.key === 'host' && !form.host) setShowHostSuggestion(true);
+                    if (field.key === 'username' && !form.username) setShowUsernameSuggestion(true);
+                  }}
+                  onBlur={() => {
+                    setTimeout(() => {
+                      setShowHostSuggestion(false);
+                      setShowUsernameSuggestion(false);
+                    }, 150);
+                  }}
                   className="w-full px-4 py-3 rounded-lg bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground/50 outline-none transition-all duration-200 focus:border-primary input-glow font-mono text-sm"
                 />
+                {field.key === 'host' && showHostSuggestion && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-10 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => handleSuggestionClick('host', 'localhost')}
+                      className="w-full px-4 py-2.5 text-left text-sm font-mono hover:bg-muted/50 transition-colors"
+                    >
+                      localhost
+                    </button>
+                  </div>
+                )}
+                {field.key === 'username' && showUsernameSuggestion && (
+                  <div className="absolute top-full left-0 right-0 mt-1 z-10 bg-popover border border-border rounded-lg shadow-lg overflow-hidden">
+                    <button
+                      type="button"
+                      onClick={() => handleSuggestionClick('username', 'postgres')}
+                      className="w-full px-4 py-2.5 text-left text-sm font-mono hover:bg-muted/50 transition-colors"
+                    >
+                      postgres
+                    </button>
+                  </div>
+                )}
                 {field.key === 'password' && (
                   <button
                     type="button"
