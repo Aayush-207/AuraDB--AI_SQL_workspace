@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Table2, ChevronRight, Database, Loader2, AlertCircle, Columns3, Key, PanelLeftClose, PanelLeft, ShieldCheck, ShieldOff, AlertTriangle, X } from 'lucide-react';
+import { Table2, ChevronRight, Database, Loader2, AlertCircle, Columns3, Key, AlertTriangle, X } from 'lucide-react';
 import { useSchema, type StoredSchema, type TableInfo } from '@/hooks/useSchema';
 
 interface SchemaSidebarProps {
   collapsed?: boolean;
-  onCollapsedChange?: (collapsed: boolean) => void;
 }
 
 const TableItem = ({ table, schemaName }: { table: TableInfo; schemaName: string }) => {
@@ -178,75 +177,13 @@ const SafeModeWarningModal = ({
   );
 };
 
-const SchemaSidebar = ({ collapsed = false, onCollapsedChange }: SchemaSidebarProps) => {
+const SchemaSidebar = ({ collapsed = false }: SchemaSidebarProps) => {
   const { data: schemas, isLoading, error } = useSchema();
-  const [isCollapsed, setIsCollapsed] = useState(collapsed);
-  const [safeMode, setSafeMode] = useState(() => {
-    const stored = sessionStorage.getItem('safeMode');
-    return stored !== 'false'; // Default to true
-  });
-  const [showWarning, setShowWarning] = useState(false);
 
-  useEffect(() => {
-    sessionStorage.setItem('safeMode', String(safeMode));
-  }, [safeMode]);
-
-  const handleToggleCollapse = () => {
-    const newState = !isCollapsed;
-    setIsCollapsed(newState);
-    onCollapsedChange?.(newState);
-  };
-
-  const handleSafeModeToggle = () => {
-    if (safeMode) {
-      // Turning OFF - show warning
-      setShowWarning(true);
-    } else {
-      // Turning ON - no warning needed
-      setSafeMode(true);
-    }
-  };
-
-  const handleConfirmDisable = () => {
-    setSafeMode(false);
-    setShowWarning(false);
-  };
-
-  const handleCancelDisable = () => {
-    setShowWarning(false);
-  };
-
-  if (isCollapsed) {
+  if (collapsed) {
     return (
       <div className="h-full flex flex-col bg-sidebar border-r border-border w-12">
-        <div className="p-2 border-b border-border">
-          <button
-            onClick={handleToggleCollapse}
-            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-muted/50 transition-colors"
-            title="Expand Schema Explorer"
-          >
-            <PanelLeft className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
         <div className="flex-1" />
-        <div className="p-2 border-t border-border">
-          <button
-            onClick={handleSafeModeToggle}
-            className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-              safeMode 
-                ? 'bg-green-500/20 text-green-500 hover:bg-green-500/30' 
-                : 'bg-destructive/20 text-destructive hover:bg-destructive/30'
-            }`}
-            title={safeMode ? 'Safe Mode: ON' : 'Safe Mode: OFF'}
-          >
-            {safeMode ? <ShieldCheck className="w-4 h-4" /> : <ShieldOff className="w-4 h-4" />}
-          </button>
-        </div>
-        <SafeModeWarningModal 
-          isOpen={showWarning} 
-          onConfirm={handleConfirmDisable} 
-          onCancel={handleCancelDisable} 
-        />
       </div>
     );
   }
@@ -254,13 +191,6 @@ const SchemaSidebar = ({ collapsed = false, onCollapsedChange }: SchemaSidebarPr
   return (
     <div className="h-full flex flex-col bg-sidebar border-r border-border">
       <div className="px-3 py-3 border-b border-border flex items-center gap-2">
-        <button
-          onClick={handleToggleCollapse}
-          className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-muted/50 transition-colors"
-          title="Collapse Schema Explorer"
-        >
-          <PanelLeftClose className="w-4 h-4 text-muted-foreground" />
-        </button>
         <h2 className="text-sm font-semibold text-sidebar-foreground">Schema Explorer</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
@@ -284,47 +214,9 @@ const SchemaSidebar = ({ collapsed = false, onCollapsedChange }: SchemaSidebarPr
           <p className="text-sm text-muted-foreground text-center p-6">No schemas found</p>
         )}
       </div>
-
-      {/* Safe Mode Toggle */}
-      <div className="p-3 border-t border-border">
-        <button
-          onClick={handleSafeModeToggle}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all ${
-            safeMode 
-              ? 'bg-green-500/10 hover:bg-green-500/20 border border-green-500/30' 
-              : 'bg-destructive/10 hover:bg-destructive/20 border border-destructive/30'
-          }`}
-        >
-          {safeMode ? (
-            <ShieldCheck className="w-5 h-5 text-green-500" />
-          ) : (
-            <ShieldOff className="w-5 h-5 text-destructive" />
-          )}
-          <div className="flex-1 text-left">
-            <p className={`text-sm font-medium ${safeMode ? 'text-green-500' : 'text-destructive'}`}>
-              Safe Mode
-            </p>
-            <p className="text-[10px] text-muted-foreground">
-              {safeMode ? 'Dangerous queries blocked' : 'All queries allowed'}
-            </p>
-          </div>
-          <div className={`w-10 h-6 rounded-full relative transition-colors ${
-            safeMode ? 'bg-green-500' : 'bg-destructive'
-          }`}>
-            <div className={`absolute top-1 w-4 h-4 rounded-full bg-white shadow-sm transition-all ${
-              safeMode ? 'right-1' : 'left-1'
-            }`} />
-          </div>
-        </button>
-      </div>
-
-      <SafeModeWarningModal 
-        isOpen={showWarning} 
-        onConfirm={handleConfirmDisable} 
-        onCancel={handleCancelDisable} 
-      />
     </div>
   );
 };
 
+export { SafeModeWarningModal };
 export default SchemaSidebar;

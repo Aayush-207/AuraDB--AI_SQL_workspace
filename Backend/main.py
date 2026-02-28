@@ -67,6 +67,7 @@ class SchemaInfo(BaseModel):
 class ConnectionSuccessResponse(BaseModel):
     success: bool = True
     schemas: List[SchemaInfo]
+    postgres_version: Optional[str] = None
 
 
 class ConnectionErrorResponse(BaseModel):
@@ -249,16 +250,23 @@ async def test_connection(request: ConnectionRequest):
         ) as conn:
             schemas = get_schemas_and_tables(conn)
             
+            # Get PostgreSQL version
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT version();")
+                version_result = cursor.fetchone()
+                postgres_version = version_result[0] if version_result else None
+            
             # Store connection details for later use
             db_connection_store['current'] = {
                 'host': request.host,
                 'port': request.port,
                 'database': request.database,
                 'username': request.username,
-                'password': request.password
+                'password': request.password,
+                'postgres_version': postgres_version
             }
             
-            return ConnectionSuccessResponse(success=True, schemas=schemas)
+            return ConnectionSuccessResponse(success=True, schemas=schemas, postgres_version=postgres_version)
             
     except OperationalError as e:
         error_message = parse_connection_error(e)

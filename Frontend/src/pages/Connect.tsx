@@ -52,6 +52,7 @@ const Connect = () => {
         // Store schema in sessionStorage for workspace
         sessionStorage.setItem('dbSchema', JSON.stringify(response.data.schemas || []));
         sessionStorage.setItem('dbConnection', JSON.stringify(form));
+        sessionStorage.setItem('postgresVersion', response.data.postgres_version || '');
         navigate('/workspace');
       } else {
         setError(response.data.error || 'Connection failed');
