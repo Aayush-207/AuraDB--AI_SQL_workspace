@@ -379,6 +379,28 @@ def extract_sql_from_response(response_text: str) -> str:
     return response_text.strip()
 
 
+def extract_table_name(sql: str) -> str | None:
+    """Extract table name from INSERT, UPDATE, or DELETE statement."""
+    sql_upper = sql.upper().strip()
+    
+    # INSERT INTO table_name
+    insert_match = re.search(r'INSERT\s+INTO\s+([^\s(]+)', sql, re.IGNORECASE)
+    if insert_match:
+        return insert_match.group(1).strip()
+    
+    # UPDATE table_name
+    update_match = re.search(r'UPDATE\s+([^\s]+)', sql, re.IGNORECASE)
+    if update_match:
+        return update_match.group(1).strip()
+    
+    # DELETE FROM table_name
+    delete_match = re.search(r'DELETE\s+FROM\s+([^\s]+)', sql, re.IGNORECASE)
+    if delete_match:
+        return delete_match.group(1).strip()
+    
+    return None
+
+
 @app.post("/ai-query")
 async def ai_query(request: AIQueryRequest):
     """
@@ -471,12 +493,36 @@ SQL query:"""
                         rows=row_dicts
                     )
                 else:
-                    # INSERT/UPDATE/DELETE - commit and return affected rows
+                    # INSERT/UPDATE/DELETE - commit and fetch affected table
                     conn.commit()
+                    affected_count = cursor.rowcount
+                    
+                    # Try to fetch the affected table
+                    table_name = extract_table_name(generated_sql)
+                    if table_name:
+                        try:
+                            # Fetch the updated table data
+                            cursor.execute(f"SELECT * FROM {table_name} LIMIT 100;")
+                            if cursor.description:
+                                columns = [desc[0] for desc in cursor.description]
+                                rows = cursor.fetchall()
+                                row_dicts = [dict(zip(columns, row)) for row in rows]
+                                
+                                return AIQuerySuccessResponse(
+                                    success=True,
+                                    query=generated_sql,
+                                    affected_rows=affected_count,
+                                    columns=columns,
+                                    rows=row_dicts
+                                )
+                        except Exception:
+                            # If fetching table fails, just return affected rows
+                            pass
+                    
                     return AIQuerySuccessResponse(
                         success=True,
                         query=generated_sql,
-                        affected_rows=cursor.rowcount
+                        affected_rows=affected_count
                     )
                     
     except OperationalError as e:
