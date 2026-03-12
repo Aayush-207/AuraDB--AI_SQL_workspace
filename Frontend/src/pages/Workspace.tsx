@@ -157,8 +157,9 @@ const Workspace = () => {
               // MongoDB: use JSON query format
               setPendingSQL(JSON.stringify({ collection: firstName, operation: 'find', filter: {}, limit: 100 }));
             } else {
+              // PostgreSQL / MySQL: use SQL
               const schemaName = schema.schema_name;
-              const tableName = schemaName === 'public' ? firstName : `${schemaName}.${firstName}`;
+              const tableName = storedDbType === 'mysql' ? firstName : (schemaName === 'public' ? firstName : `${schemaName}.${firstName}`);
               setPendingSQL(`SELECT * FROM ${tableName} LIMIT 100;`);
             }
             break;

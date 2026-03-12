@@ -6,6 +6,8 @@ from psycopg2 import OperationalError, Error
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure, OperationFailure, ConfigurationError
 from bson import ObjectId, json_util
+import pymysql
+import pymysql.cursors
 from typing import List, Optional, Any, Dict
 from contextlib import contextmanager
 import time
@@ -100,7 +102,7 @@ class AIQueryRequest(BaseModel):
     password: str = Field(default="", description="Database password")
     prompt: str = Field(..., description="Natural language query")
     safe_mode: bool = Field(default=True, description="Whether to block dangerous operations")
-    db_type: str = Field(default="postgresql", description="Database type: postgresql or mongodb")
+    db_type: str = Field(default="postgresql", description="Database type: postgresql, mongodb, or mysql")
     connection_string: str = Field(default="", description="Full connection string (MongoDB SRV etc.)")
 
 
@@ -251,7 +253,6 @@ def get_schemas_and_tables(conn) -> List[SchemaInfo]:
     
     return result
 
-
 # ==================== MongoDB Functions ====================
 
 def get_mongo_client(host: str = "", port: int = 27017, username: str = "", password: str = "", connection_string: str = ""):
@@ -376,6 +377,184 @@ def parse_connection_error(error: Exception) -> str:
         return str(error)
 
 
+# ==================== MySQL Functions ====================
+
+def get_mysql_connection(host: str, port: int, database: str, username: str, password: str):
+    """Create a MySQL connection."""
+    resolved_host = resolve_host(host)
+    return pymysql.connect(
+        host=resolved_host,
+        port=port,
+        database=database,
+        user=username,
+        password=password,
+        connect_timeout=15,
+        cursorclass=pymysql.cursors.Cursor,
+        charset='utf8mb4',
+    )
+
+
+def get_mysql_schemas_and_tables(conn) -> List[SchemaInfo]:
+    """Fetch tables and columns from a MySQL database."""
+    tables_query = """
+        SELECT table_name
+        FROM information_schema.tables
+        WHERE table_schema = DATABASE()
+        AND table_type = 'BASE TABLE'
+        ORDER BY table_name;
+    """
+
+    columns_query = """
+        SELECT
+            c.column_name,
+            c.data_type,
+            c.is_nullable,
+            CASE WHEN c.column_key = 'PRI' THEN 1 ELSE 0 END as is_primary_key
+        FROM information_schema.columns c
+        WHERE c.table_schema = DATABASE() AND c.table_name = %s
+        ORDER BY c.ordinal_position;
+    """
+
+    result = []
+    with conn.cursor() as cursor:
+        cursor.execute("SELECT DATABASE();")
+        db_name = cursor.fetchone()[0] or 'default'
+
+        cursor.execute(tables_query)
+        tables = cursor.fetchall()
+
+        table_list = []
+        for (table_name,) in tables:
+            cursor.execute(columns_query, (table_name,))
+            columns = cursor.fetchall()
+
+            column_list = [
+                ColumnInfo(
+                    name=col[0],
+                    type=col[1],
+                    nullable=col[2] == 'YES',
+                    primary_key=bool(col[3])
+                )
+                for col in columns
+            ]
+            table_list.append(TableInfo(name=table_name, columns=column_list))
+
+        result.append(SchemaInfo(schema_name=db_name, tables=table_list))
+
+    return result
+
+
+def _split_sql_statements(sql: str) -> list:
+    """Split a SQL string into individual statements, respecting quoted strings."""
+    statements = []
+    current = []
+    in_single_quote = False
+    in_double_quote = False
+    in_backtick = False
+    i = 0
+    while i < len(sql):
+        ch = sql[i]
+        # Handle escape sequences inside quotes
+        if ch == '\\' and (in_single_quote or in_double_quote):
+            current.append(ch)
+            i += 1
+            if i < len(sql):
+                current.append(sql[i])
+            i += 1
+            continue
+        if ch == "'" and not in_double_quote and not in_backtick:
+            in_single_quote = not in_single_quote
+        elif ch == '"' and not in_single_quote and not in_backtick:
+            in_double_quote = not in_double_quote
+        elif ch == '`' and not in_single_quote and not in_double_quote:
+            in_backtick = not in_backtick
+        elif ch == ';' and not in_single_quote and not in_double_quote and not in_backtick:
+            stmt = ''.join(current).strip()
+            if stmt:
+                statements.append(stmt)
+            current = []
+            i += 1
+            continue
+        current.append(ch)
+        i += 1
+    # Last statement (may not end with ;)
+    stmt = ''.join(current).strip()
+    if stmt:
+        statements.append(stmt)
+    return statements
+
+
+async def execute_mysql_query(sql: str, conn_details: dict):
+    """Execute one or more MySQL statements."""
+    try:
+        start_time = time.time()
+        conn = get_mysql_connection(
+            host=conn_details['host'],
+            port=conn_details['port'],
+            database=conn_details['database'],
+            username=conn_details['username'],
+            password=conn_details['password']
+        )
+        try:
+            statements = _split_sql_statements(sql)
+            last_result = None
+            total_row_count = 0
+
+            with conn.cursor() as cursor:
+                for stmt in statements:
+                    cursor.execute(stmt)
+
+                    if cursor.description:
+                        columns = [desc[0] for desc in cursor.description]
+                        rows = cursor.fetchall()
+                        row_dicts = [dict(zip(columns, row)) for row in rows]
+                        last_result = (columns, row_dicts)
+                        total_row_count = len(row_dicts)
+                    else:
+                        total_row_count += cursor.rowcount
+
+                conn.commit()
+
+            execution_time = (time.time() - start_time) * 1000
+
+            if last_result:
+                columns, row_dicts = last_result
+                return ExecuteResponse(
+                    columns=columns,
+                    rows=row_dicts,
+                    row_count=len(row_dicts),
+                    execution_time_ms=round(execution_time, 2)
+                )
+            else:
+                return ExecuteResponse(
+                    columns=[],
+                    rows=[],
+                    row_count=total_row_count,
+                    execution_time_ms=round(execution_time, 2)
+                )
+        finally:
+            conn.close()
+
+    except pymysql.Error as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+def format_mysql_schema_for_ai(schemas: List[SchemaInfo]) -> str:
+    """Format MySQL schema information for AI context."""
+    lines = ["MySQL Database Schema:"]
+    for schema in schemas:
+        lines.append(f"\nDatabase: {schema.schema_name}")
+        for table in schema.tables:
+            columns_str = ", ".join([
+                f"{col.name} ({col.type}{'[PK]' if col.primary_key else ''})"
+                for col in table.columns
+            ])
+            lines.append(f"  Table: {table.name} ({columns_str})")
+    return "\n".join(lines)
+
+
 @app.post(
     "/connect",
     response_model=ConnectionSuccessResponse,
@@ -387,7 +566,7 @@ def parse_connection_error(error: Exception) -> str:
 async def test_connection(request: ConnectionRequest):
     """
     Test database connection and retrieve schema information.
-    Supports both PostgreSQL and MongoDB.
+    Supports both PostgreSQL, MySQL, and MongoDB.
     """
     if request.db_type == "mongodb":
         try:
@@ -428,6 +607,45 @@ async def test_connection(request: ConnectionRequest):
             raise HTTPException(status_code=400, detail=error_message)
         except OperationFailure as e:
             raise HTTPException(status_code=400, detail=f"MongoDB error: {str(e)}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+    
+    elif request.db_type == "mysql":
+        # MySQL connection
+        try:
+            conn = get_mysql_connection(
+                host=request.host,
+                port=request.port,
+                database=request.database,
+                username=request.username,
+                password=request.password
+            )
+            schemas = get_mysql_schemas_and_tables(conn)
+            
+            # Get MySQL version
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT VERSION();")
+                version_result = cursor.fetchone()
+                mysql_version = f"MySQL {version_result[0]}" if version_result else None
+            
+            # Store connection details
+            db_connection_store['current'] = {
+                'host': request.host,
+                'port': request.port,
+                'database': request.database,
+                'username': request.username,
+                'password': request.password,
+                'db_type': 'mysql',
+                'postgres_version': mysql_version
+            }
+            
+            conn.close()
+            return ConnectionSuccessResponse(success=True, schemas=schemas, postgres_version=mysql_version)
+            
+        except pymysql.OperationalError as e:
+            raise HTTPException(status_code=400, detail=f"MySQL connection error: {str(e)}")
+        except pymysql.Error as e:
+            raise HTTPException(status_code=400, detail=f"MySQL error: {str(e)}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
     
@@ -484,6 +702,8 @@ async def execute_sql(request: ExecuteRequest):
     
     if db_type == "mongodb":
         return await execute_mongo_query(request.sql, conn_details)
+    elif db_type == "mysql":
+        return await execute_mysql_query(request.sql, conn_details)
     else:
         return await execute_postgres_query(request.sql, conn_details)
 
@@ -824,6 +1044,8 @@ async def ai_query(request: AIQueryRequest):
     
     if request.db_type == "mongodb":
         return await _ai_query_mongo(request)
+    elif request.db_type == "mysql":
+        return await _ai_query_mysql(request)
     else:
         return await _ai_query_postgres(request)
 
@@ -1071,6 +1293,139 @@ SQL query:"""
             success=False,
             query=generated_sql if 'generated_sql' in locals() else None,
             error="SQL execution failed",
+            details=str(e)
+        )
+    except Exception as e:
+        return AIQueryErrorResponse(
+            success=False,
+            error="Unexpected error",
+            details=str(e)
+        )
+
+
+async def _ai_query_mysql(request: AIQueryRequest):
+    """Handle AI query for MySQL."""
+    generated_sql = None
+    try:
+        conn = get_mysql_connection(
+            host=request.host,
+            port=request.port,
+            database=request.database,
+            username=request.username,
+            password=request.password
+        )
+        try:
+            schemas = get_mysql_schemas_and_tables(conn)
+        finally:
+            conn.close()
+
+        schema_context = format_mysql_schema_for_ai(schemas)
+
+        ai_prompt = f"""You are a MySQL SQL expert. Given the following database schema and a natural language request, generate a valid MySQL SQL query.
+
+{schema_context}
+
+User request: {request.prompt}
+
+Rules:
+1. Return ONLY the SQL query, no explanations
+2. Use proper MySQL syntax
+3. Include appropriate LIMIT clauses for SELECT queries (default to 100 if not specified)
+4. Use backticks for identifiers if they are reserved words
+
+SQL query:"""
+
+        response = gemini_client.models.generate_content(
+            model='gemini-flash-latest',
+            contents=ai_prompt
+        )
+
+        if not response.text:
+            return AIQueryErrorResponse(
+                success=False,
+                error="AI failed to generate SQL",
+                details="Empty response from AI model"
+            )
+
+        generated_sql = extract_sql_from_response(response.text)
+
+        is_valid, validation_error = validate_sql(generated_sql, request.safe_mode)
+        if not is_valid:
+            return AIQueryErrorResponse(
+                success=False,
+                query=generated_sql,
+                error="Generated SQL failed validation",
+                details=validation_error
+            )
+
+        conn = get_mysql_connection(
+            host=request.host,
+            port=request.port,
+            database=request.database,
+            username=request.username,
+            password=request.password
+        )
+        try:
+            statements = _split_sql_statements(generated_sql)
+            last_select_result = None
+            total_affected = 0
+
+            with conn.cursor() as cursor:
+                for stmt in statements:
+                    cursor.execute(stmt)
+
+                    if cursor.description:
+                        columns = [desc[0] for desc in cursor.description]
+                        rows = cursor.fetchall()
+                        row_dicts = [dict(zip(columns, row)) for row in rows]
+                        last_select_result = (columns, row_dicts)
+                    else:
+                        total_affected += cursor.rowcount
+
+                conn.commit()
+
+            if last_select_result:
+                columns, row_dicts = last_select_result
+                return AIQuerySuccessResponse(
+                    success=True,
+                    query=generated_sql,
+                    columns=columns,
+                    rows=row_dicts
+                )
+            else:
+                # After DML, try to show the affected table
+                table_name = extract_table_name(generated_sql)
+                if table_name:
+                    try:
+                        with conn.cursor() as cursor:
+                            cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 100;")
+                            if cursor.description:
+                                columns = [desc[0] for desc in cursor.description]
+                                rows = cursor.fetchall()
+                                row_dicts = [dict(zip(columns, row)) for row in rows]
+                                return AIQuerySuccessResponse(
+                                    success=True,
+                                    query=generated_sql,
+                                    affected_rows=total_affected,
+                                    columns=columns,
+                                    rows=row_dicts
+                                )
+                    except Exception:
+                        pass
+
+                return AIQuerySuccessResponse(
+                    success=True,
+                    query=generated_sql,
+                    affected_rows=total_affected
+                )
+        finally:
+            conn.close()
+
+    except pymysql.Error as e:
+        return AIQueryErrorResponse(
+            success=False,
+            query=generated_sql,
+            error="MySQL error",
             details=str(e)
         )
     except Exception as e:

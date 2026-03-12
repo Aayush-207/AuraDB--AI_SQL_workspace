@@ -29,6 +29,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
 
   const dbType = sessionStorage.getItem('dbType') || 'postgresql';
   const isMongo = dbType === 'mongodb';
+  const isSQL = dbType === 'postgresql' || dbType === 'mysql';
 
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textareaRef.current;
@@ -255,7 +256,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
                   Start a conversation about your database
                 </p>
                 <p className="text-muted-foreground/50 text-xs mt-2">
-                  Ask questions in natural language and get {isMongo ? 'MongoDB queries' : 'SQL queries'}
+                  Ask questions in natural language and get {isMongo ? 'MongoDB queries' : 'SQL queries'} generated
                 </p>
               </motion.div>
             )}

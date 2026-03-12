@@ -19,6 +19,9 @@ const StatusBar = ({ isConnected }: StatusBarProps) => {
       if (storedDbType === 'mongodb') {
         // MongoDB version is already formatted as "MongoDB X.X.X"
         setPostgresVersion(version);
+      } else if (storedDbType === 'mysql') {
+        // MySQL version is already formatted as "MySQL X.X.X"
+        setPostgresVersion(version);
       } else {
         // Extract just the major version info (e.g., "PostgreSQL 15.2")
         const match = version.match(/PostgreSQL\s+[\d.]+/i);

@@ -27,6 +27,8 @@ const Connect = () => {
   const slideDirection = useRef<1 | -1>(1);
 
   const isMongo = form.db_type === 'mongodb';
+  const isMySQL = form.db_type === 'mysql';
+  const dbTypeLabel = isMongo ? 'MongoDB' : isMySQL ? 'MySQL' : 'PostgreSQL';
 
   // Auto-detect connection string pasted into host field
   const handleHostChange = (value: string) => {
@@ -48,31 +50,38 @@ const Connect = () => {
   };
 
   const fields = useMemo(() => {
+    const portDefault = isMongo ? '27017' : isMySQL ? '3306' : '5432';
+    const userPlaceholder = isMongo ? '(optional)' : isMySQL ? 'root' : 'postgres';
+    const passPlaceholder = isMongo ? '(optional)' : '••••••••';
     const base: { key: keyof ConnectionPayload; label: string; type: string; placeholder: string; required: boolean }[] = [
       { key: 'host', label: 'Host', type: 'text', placeholder: 'localhost or db.example.com', required: true },
-      { key: 'port', label: 'Port', type: 'number', placeholder: isMongo ? '27017' : '5432', required: true },
+      { key: 'port', label: 'Port', type: 'number', placeholder: portDefault, required: true },
       { key: 'database', label: 'Database Name', type: 'text', placeholder: 'my_database', required: true },
-      { key: 'username', label: 'Username', type: 'text', placeholder: isMongo ? '(optional)' : 'postgres', required: !isMongo },
-      { key: 'password', label: 'Password', type: 'password', placeholder: isMongo ? '(optional)' : '••••••••', required: !isMongo },
+      { key: 'username', label: 'Username', type: 'text', placeholder: userPlaceholder, required: !isMongo },
+      { key: 'password', label: 'Password', type: 'password', placeholder: passPlaceholder, required: !isMongo },
     ];
     return base;
-  }, [isMongo]);
+  }, [isMongo, isMySQL]);
 
   const isValid = useConnectionString
     ? (form.connection_string && form.database)
     : (form.host && form.database && form.port > 0 && (isMongo || (form.username && form.password)));
 
   const handleDbTypeSwitch = useCallback((type: string) => {
-    slideDirection.current = type === 'mongodb' ? 1 : -1;
+    const dbTypes = ['postgresql', 'mysql', 'mongodb'];
+    const oldIdx = dbTypes.indexOf(form.db_type);
+    const newIdx = dbTypes.indexOf(type);
+    slideDirection.current = newIdx > oldIdx ? 1 : -1;
+    const portMap: Record<string, number> = { postgresql: 5432, mysql: 3306, mongodb: 27017 };
     setForm(prev => ({
       ...prev,
       db_type: type,
-      port: type === 'mongodb' ? 27017 : 5432,
+      port: portMap[type] || 5432,
       connection_string: '',
     }));
     setUseConnectionString(type === 'mongodb');
     setError('');
-  }, []);
+  }, [form.db_type]);
 
   const formVariants = {
     enter: (dir: number) => ({ x: dir * 80, opacity: 0 }),
@@ -148,7 +157,7 @@ const Connect = () => {
             <Database className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">Connect Your {isMongo ? 'MongoDB' : 'PostgreSQL'} Database</h1>
+            <h1 className="text-xl font-bold">Connect Your {dbTypeLabel} Database</h1>
           </div>
         </div>
 
@@ -157,28 +166,22 @@ const Connect = () => {
           <motion.div
             className="absolute top-1 bottom-1 rounded-md bg-primary shadow-lg"
             initial={false}
-            animate={{ x: isMongo ? '100%' : '0%' }}
+            animate={{ x: form.db_type === 'mysql' ? '100%' : form.db_type === 'mongodb' ? '200%' : '0%' }}
             transition={{ type: 'spring', stiffness: 350, damping: 30 }}
-            style={{ width: 'calc(50% - 4px)' }}
+            style={{ width: 'calc(33.333% - 3px)' }}
           />
-          <button
-            type="button"
-            onClick={() => handleDbTypeSwitch('postgresql')}
-            className={`relative z-10 flex-1 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 ${
-              !isMongo ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            PostgreSQL
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDbTypeSwitch('mongodb')}
-            className={`relative z-10 flex-1 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 ${
-              isMongo ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            MongoDB
-          </button>
+          {['postgresql', 'mysql', 'mongodb'].map((type) => (
+            <button
+              key={type}
+              type="button"
+              onClick={() => handleDbTypeSwitch(type)}
+              className={`relative z-10 flex-1 py-2.5 rounded-md text-sm font-medium transition-colors duration-200 ${
+                form.db_type === type ? 'text-primary-foreground' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {type === 'postgresql' ? 'PostgreSQL' : type === 'mysql' ? 'MySQL' : 'MongoDB'}
+            </button>
+          ))}
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
@@ -240,7 +243,7 @@ const Connect = () => {
                 </motion.div>
               ) : (
                 <motion.div
-                  key="postgresql"
+                  key={form.db_type}
                   custom={slideDirection.current}
                   variants={formVariants}
                   initial="enter"
