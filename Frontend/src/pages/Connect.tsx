@@ -60,7 +60,14 @@ const Connect = () => {
         setTimeout(() => setShaking(false), 500);
       }
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Connection failed';
+      // Handle axios error response
+      let msg = 'Connection failed';
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosErr = err as { response?: { data?: { detail?: string } } };
+        msg = axiosErr.response?.data?.detail || msg;
+      } else if (err instanceof Error) {
+        msg = err.message;
+      }
       setError(msg);
       setShaking(true);
       setTimeout(() => setShaking(false), 500);

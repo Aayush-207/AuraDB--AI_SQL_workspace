@@ -111,18 +111,58 @@ class AIQueryErrorResponse(BaseModel):
     details: Optional[str] = None
 
 
+import subprocess
+import socket
+import dns.resolver
+
+
+def resolve_host(host: str) -> str:
+    """Resolve hostname, falling back to Google DNS (8.8.8.8) if local DNS fails."""
+    # First try local DNS
+    try:
+        socket.getaddrinfo(host, 5432, socket.AF_UNSPEC, socket.SOCK_STREAM)
+        return host
+    except socket.gaierror:
+        pass
+    
+    # Fallback: resolve via Google DNS using dnspython
+    try:
+        resolver = dns.resolver.Resolver()
+        resolver.nameservers = ['8.8.8.8', '8.8.4.4']
+        
+        # Try A record (IPv4) first
+        try:
+            answers = resolver.resolve(host, 'A')
+            return str(answers[0])
+        except Exception:
+            pass
+        
+        # Try AAAA record (IPv6)
+        try:
+            answers = resolver.resolve(host, 'AAAA')
+            return str(answers[0])
+        except Exception:
+            pass
+    except Exception:
+        pass
+    
+    return host
+
+
 @contextmanager
 def get_db_connection(host: str, port: int, database: str, username: str, password: str):
     """Context manager for database connections."""
     conn = None
+    resolved_host = resolve_host(host)
     try:
         conn = psycopg2.connect(
-            host=host,
+            host=resolved_host,
             port=port,
             dbname=database,
             user=username,
             password=password,
-            connect_timeout=10
+            connect_timeout=15,
+            sslmode="prefer"
         )
         yield conn
     finally:
@@ -219,7 +259,9 @@ def parse_connection_error(error: Exception) -> str:
     elif "no route to host" in error_msg:
         return "Host unreachable: No route to the specified host"
     elif "name or service not known" in error_msg or "nodename nor servname provided" in error_msg:
-        return "Invalid host: The hostname could not be resolved"
+        return "DNS resolution failed: Your network could not resolve the hostname. This is likely a local DNS restriction (e.g. university/corporate network). Try using a local PostgreSQL instance or a different network."
+    elif "network is unreachable" in error_msg:
+        return "Network unreachable: The resolved address (likely IPv6) is not reachable from your network. Try using a local PostgreSQL instance or a network with IPv6 support."
     elif "connection refused" in error_msg:
         return "Connection refused: Check if PostgreSQL is running on the specified port"
     else:
@@ -270,13 +312,13 @@ async def test_connection(request: ConnectionRequest):
             
     except OperationalError as e:
         error_message = parse_connection_error(e)
-        return ConnectionErrorResponse(success=False, error=error_message)
+        raise HTTPException(status_code=400, detail=error_message)
     
     except Error as e:
-        return ConnectionErrorResponse(success=False, error=f"Database error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Database error: {str(e)}")
     
     except Exception as e:
-        return ConnectionErrorResponse(success=False, error=f"Unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
 @app.post("/execute")

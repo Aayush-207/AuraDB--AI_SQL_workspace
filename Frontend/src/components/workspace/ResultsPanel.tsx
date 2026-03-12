@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Table, BarChart3, Loader2, Inbox, Clock } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
@@ -65,13 +65,18 @@ const ResultsPanel = ({ sqlToExecute, aiResults, onClear, onLog, onResultsUpdate
   } : result;
 
   // Notify parent of results changes
+  const prevResultRef = useRef<{ columns: string[]; rows: Record<string, unknown>[] } | null>(null);
   useEffect(() => {
-    if (displayData) {
-      onResultsUpdate?.({ columns: displayData.columns, rows: displayData.rows });
-    } else {
-      onResultsUpdate?.(null);
+    const newResult = displayData
+      ? { columns: displayData.columns, rows: displayData.rows }
+      : null;
+    
+    // Only update if the actual data reference changed
+    if (newResult?.rows !== prevResultRef.current?.rows) {
+      prevResultRef.current = newResult;
+      onResultsUpdate?.(newResult);
     }
-  }, [displayData, onResultsUpdate]);
+  }, [result, aiResults]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const numericColumns = displayData
     ? displayData.columns.filter((col) =>
