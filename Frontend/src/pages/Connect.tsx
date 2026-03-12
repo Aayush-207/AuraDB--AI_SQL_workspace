@@ -1,7 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Database, Loader2, AlertCircle, Lock, Eye, EyeOff } from 'lucide-react';
+import { Database, Loader2, AlertCircle, Lock, Eye, EyeOff, Link } from 'lucide-react';
 import { connectDatabase, type ConnectionPayload } from '@/api/endpoints';
 
 const Connect = () => {
@@ -12,6 +12,8 @@ const Connect = () => {
     database: '',
     username: '',
     password: '',
+    db_type: 'postgresql',
+    connection_string: '',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -19,18 +21,56 @@ const Connect = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showHostSuggestion, setShowHostSuggestion] = useState(false);
   const [showUsernameSuggestion, setShowUsernameSuggestion] = useState(false);
+  const [useConnectionString, setUseConnectionString] = useState(false);
   const hostInputRef = useRef<HTMLInputElement>(null);
   const usernameInputRef = useRef<HTMLInputElement>(null);
 
-  const fields: { key: keyof ConnectionPayload; label: string; type: string; placeholder: string }[] = [
-    { key: 'host', label: 'Host', type: 'text', placeholder: 'localhost or db.example.com' },
-    { key: 'port', label: 'Port', type: 'number', placeholder: '5432' },
-    { key: 'database', label: 'Database Name', type: 'text', placeholder: 'my_database' },
-    { key: 'username', label: 'Username', type: 'text', placeholder: 'postgres' },
-    { key: 'password', label: 'Password', type: 'password', placeholder: '••••••••' },
-  ];
+  const isMongo = form.db_type === 'mongodb';
 
-  const isValid = form.host && form.database && form.username && form.password && form.port > 0;
+  // Auto-detect connection string pasted into host field
+  const handleHostChange = (value: string) => {
+    if (value.startsWith('mongodb+srv://') || value.startsWith('mongodb://')) {
+      // User pasted a connection string into host — switch to connection string mode
+      setUseConnectionString(true);
+      // Try to extract database from the URI path
+      let dbName = form.database;
+      try {
+        const pathMatch = value.match(/\.net\/([^?/]+)/);
+        if (pathMatch && pathMatch[1]) {
+          dbName = pathMatch[1];
+        }
+      } catch { /* ignore */ }
+      setForm(prev => ({ ...prev, host: '', connection_string: value, database: dbName }));
+      return;
+    }
+    setForm(prev => ({ ...prev, host: value }));
+  };
+
+  const fields = useMemo(() => {
+    const base: { key: keyof ConnectionPayload; label: string; type: string; placeholder: string; required: boolean }[] = [
+      { key: 'host', label: 'Host', type: 'text', placeholder: 'localhost or db.example.com', required: true },
+      { key: 'port', label: 'Port', type: 'number', placeholder: isMongo ? '27017' : '5432', required: true },
+      { key: 'database', label: 'Database Name', type: 'text', placeholder: 'my_database', required: true },
+      { key: 'username', label: 'Username', type: 'text', placeholder: isMongo ? '(optional)' : 'postgres', required: !isMongo },
+      { key: 'password', label: 'Password', type: 'password', placeholder: isMongo ? '(optional)' : '••••••••', required: !isMongo },
+    ];
+    return base;
+  }, [isMongo]);
+
+  const isValid = useConnectionString
+    ? (form.connection_string && form.database)
+    : (form.host && form.database && form.port > 0 && (isMongo || (form.username && form.password)));
+
+  const handleDbTypeSwitch = (type: string) => {
+    setForm(prev => ({
+      ...prev,
+      db_type: type,
+      port: type === 'mongodb' ? 27017 : 5432,
+      connection_string: '',
+    }));
+    setUseConnectionString(false);
+    setError('');
+  };
 
   const handleSuggestionClick = (field: 'host' | 'username', value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -53,6 +93,10 @@ const Connect = () => {
         sessionStorage.setItem('dbSchema', JSON.stringify(response.data.schemas || []));
         sessionStorage.setItem('dbConnection', JSON.stringify(form));
         sessionStorage.setItem('postgresVersion', response.data.postgres_version || '');
+        sessionStorage.setItem('dbType', form.db_type);
+        if (form.connection_string) {
+          sessionStorage.setItem('mongoConnectionString', form.connection_string);
+        }
         navigate('/workspace');
       } else {
         setError(response.data.error || 'Connection failed');
@@ -96,12 +140,111 @@ const Connect = () => {
             <Database className="w-5 h-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">Connect Your PostgreSQL Database</h1>
+            <h1 className="text-xl font-bold">Connect Your {isMongo ? 'MongoDB' : 'PostgreSQL'} Database</h1>
           </div>
         </div>
 
+        {/* DB Type Toggle */}
+        <div className="flex gap-2 mb-6">
+          <button
+            type="button"
+            onClick={() => handleDbTypeSwitch('postgresql')}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              !isMongo
+                ? 'bg-primary text-primary-foreground shadow-lg'
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted/80 border border-border'
+            }`}
+          >
+            PostgreSQL
+          </button>
+          <button
+            type="button"
+            onClick={() => handleDbTypeSwitch('mongodb')}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              isMongo
+                ? 'bg-primary text-primary-foreground shadow-lg'
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted/80 border border-border'
+            }`}
+          >
+            MongoDB
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit} className="space-y-5">
-          {fields.map((field, i) => (
+          {/* Connection String toggle for MongoDB */}
+          {isMongo && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.12 }}
+            >
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-muted-foreground">
+                  Connection String
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUseConnectionString(!useConnectionString);
+                    if (useConnectionString) {
+                      setForm(prev => ({ ...prev, connection_string: '' }));
+                    }
+                  }}
+                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${
+                    useConnectionString
+                      ? 'bg-primary/20 text-primary'
+                      : 'bg-muted/50 text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {useConnectionString ? 'Use Fields Instead' : 'Use Connection String'}
+                </button>
+              </div>
+              <AnimatePresence>
+                {useConnectionString && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <div className="relative">
+                      <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                      <input
+                        type="text"
+                        placeholder="mongodb+srv://user:pass@cluster.mongodb.net/"
+                        value={form.connection_string || ''}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setForm(prev => ({ ...prev, connection_string: val }));
+                          // Try to extract database name from URI
+                          try {
+                            const pathMatch = val.match(/\.net\/([^?/]+)/);
+                            if (pathMatch && pathMatch[1] && !form.database) {
+                              setForm(prev => ({ ...prev, database: pathMatch[1] }));
+                            }
+                          } catch { /* ignore */ }
+                        }}
+                        className="w-full pl-9 pr-4 py-3 rounded-lg bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground/50 outline-none transition-all duration-200 focus:border-primary input-glow font-mono text-xs"
+                      />
+                    </div>
+                    {form.connection_string && (
+                      <p className="text-[10px] text-green-500/70 mt-1.5 flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                        Connection string detected — only Database Name required below
+                      </p>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
+
+          {/* Form fields — hide host/port/username/password when using connection string */}
+          {fields.map((field, i) => {
+            // When using connection string, only show database field
+            if (useConnectionString && field.key !== 'database') return null;
+
+            return (
             <motion.div
               key={field.key}
               initial={{ opacity: 0, y: 10 }}
@@ -110,6 +253,7 @@ const Connect = () => {
             >
               <label className="block text-sm font-medium text-muted-foreground mb-1.5">
                 {field.label}
+                {!field.required && <span className="text-muted-foreground/50 ml-1">(optional)</span>}
               </label>
               <div className="relative">
                 <input
@@ -117,12 +261,16 @@ const Connect = () => {
                   type={field.key === 'password' ? (showPassword ? 'text' : 'password') : field.type}
                   placeholder={field.placeholder}
                   value={form[field.key]}
-                  onChange={(e) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value,
-                    }))
-                  }
+                  onChange={(e) => {
+                    if (field.key === 'host') {
+                      handleHostChange(e.target.value);
+                    } else {
+                      setForm((prev) => ({
+                        ...prev,
+                        [field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value,
+                      }));
+                    }
+                  }}
                   onFocus={() => {
                     if (field.key === 'host' && !form.host) setShowHostSuggestion(true);
                     if (field.key === 'username' && !form.username) setShowUsernameSuggestion(true);
@@ -168,7 +316,8 @@ const Connect = () => {
                 )}
               </div>
             </motion.div>
-          ))}
+            );
+          })}
 
           <AnimatePresence>
             {error && (

@@ -184,6 +184,9 @@ const SchemaSidebar = ({ collapsed = false }: SchemaSidebarProps) => {
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  const dbType = sessionStorage.getItem('dbType') || 'postgresql';
+  const isMongo = dbType === 'mongodb';
+
   const handleRefresh = async () => {
     const stored = sessionStorage.getItem('dbConnection');
     if (!stored) return;
@@ -206,7 +209,7 @@ const SchemaSidebar = ({ collapsed = false }: SchemaSidebarProps) => {
   return (
     <div className="h-full flex flex-col bg-sidebar border-r border-border">
       <div className="px-3 py-3 border-b border-border flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-sidebar-foreground">Schema Explorer</h2>
+        <h2 className="text-sm font-semibold text-sidebar-foreground">{isMongo ? 'Collections' : 'Schema Explorer'}</h2>
         <button
           onClick={handleRefresh}
           disabled={isRefreshing}

@@ -31,6 +31,9 @@ const Workspace = () => {
   });
   const [showSafeModeWarning, setShowSafeModeWarning] = useState(false);
 
+  const dbType = sessionStorage.getItem('dbType') || 'postgresql';
+  const isMongo = dbType === 'mongodb';
+
   const addLog = useCallback((type: LogEntry['type'], message: string, details?: string) => {
     const newLog: LogEntry = {
       id: `log-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -142,17 +145,22 @@ const Workspace = () => {
   // Auto-execute query on first table when workspace loads
   useEffect(() => {
     const stored = sessionStorage.getItem('dbSchema');
+    const storedDbType = sessionStorage.getItem('dbType') || 'postgresql';
     if (stored) {
       try {
         const schemas = JSON.parse(stored);
-        // Find the first table in the first schema that has tables
+        // Find the first table/collection in the first schema
         for (const schema of schemas) {
           if (schema.tables && schema.tables.length > 0) {
-            const firstTable = schema.tables[0].name;
-            const schemaName = schema.schema_name;
-            // Use schema-qualified name if not public
-            const tableName = schemaName === 'public' ? firstTable : `${schemaName}.${firstTable}`;
-            setPendingSQL(`SELECT * FROM ${tableName} LIMIT 100;`);
+            const firstName = schema.tables[0].name;
+            if (storedDbType === 'mongodb') {
+              // MongoDB: use JSON query format
+              setPendingSQL(JSON.stringify({ collection: firstName, operation: 'find', filter: {}, limit: 100 }));
+            } else {
+              const schemaName = schema.schema_name;
+              const tableName = schemaName === 'public' ? firstName : `${schemaName}.${firstName}`;
+              setPendingSQL(`SELECT * FROM ${tableName} LIMIT 100;`);
+            }
             break;
           }
         }
@@ -205,6 +213,7 @@ const Workspace = () => {
         onExport={handleExport}
         onClear={handleClearResults}
         hasResults={currentResults !== null && currentResults.rows.length > 0}
+        isMongo={isMongo}
       />
 
       {/* Main Content */}

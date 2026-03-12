@@ -27,6 +27,9 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const dbType = sessionStorage.getItem('dbType') || 'postgresql';
+  const isMongo = dbType === 'mongodb';
+
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textareaRef.current;
     if (textarea) {
@@ -68,10 +71,12 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
         host: conn.host,
         port: conn.port,
         database: conn.database,
-        username: conn.username,
-        password: conn.password,
+        username: conn.username || '',
+        password: conn.password || '',
         prompt: p,
         safe_mode: getSafeMode(),
+        db_type: conn.db_type || 'postgresql',
+        connection_string: conn.connection_string || '',
       });
       return response.data;
     },
@@ -88,7 +93,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
 
       // Log the result
       if (data.success) {
-        onLog?.('success', `AI generated SQL executed: ${data.rows?.length || 0} row(s)`);
+        onLog?.('success', `AI generated query executed: ${data.rows?.length || 0} row(s)`);
       } else {
         onLog?.('error', 'AI query failed', `Prompt: ${variables}\n\nError: ${data.error || 'Unknown error'}\n\nGenerated SQL: ${data.query || 'None'}`);
       }
@@ -163,7 +168,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
             }`}
           >
             <Code className="w-3 h-3 inline mr-1" />
-            SQL
+            {isMongo ? 'Query' : 'SQL'}
           </button>
         </div>
       </div>
@@ -183,7 +188,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
                 <div className="h-full glass rounded-xl p-4 flex flex-col">
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      SQL Query
+                      {isMongo ? 'MongoDB Query' : 'SQL Query'}
                     </span>
                     <button
                       onClick={handleExecuteSQL}
@@ -197,7 +202,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
                   <textarea
                     value={sqlInput}
                     onChange={(e) => setSqlInput(e.target.value)}
-                    placeholder="SELECT * FROM customers;"
+                    placeholder={isMongo ? '{"collection": "users", "operation": "find", "filter": {}}' : 'SELECT * FROM customers;'}
                     className="flex-1 w-full bg-transparent outline-none text-sm font-mono placeholder:text-muted-foreground/50 resize-none leading-relaxed"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
@@ -250,7 +255,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
                   Start a conversation about your database
                 </p>
                 <p className="text-muted-foreground/50 text-xs mt-2">
-                  Ask questions in natural language and get SQL queries
+                  Ask questions in natural language and get {isMongo ? 'MongoDB queries' : 'SQL queries'}
                 </p>
               </motion.div>
             )}
@@ -293,7 +298,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
                                 <div>
                                   <div className="flex items-center justify-between mb-2">
                                     <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
-                                      Generated SQL
+                                      Generated Query
                                     </span>
                                     <button
                                       onClick={() => handleReExecute(message.aiResponse!.query!)}
@@ -359,7 +364,7 @@ const AIPanel = ({ onSQLReady, onAIResults, onLog }: AIPanelProps) => {
                   <div className="glass rounded-2xl rounded-tl-sm px-4 py-3">
                     <div className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                      <span className="text-sm text-muted-foreground">Generating SQL...</span>
+                      <span className="text-sm text-muted-foreground">Generating query...</span>
                     </div>
                   </div>
                 </div>

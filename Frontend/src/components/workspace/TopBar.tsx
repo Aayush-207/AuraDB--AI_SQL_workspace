@@ -26,6 +26,7 @@ interface TopBarProps {
   onExport: () => void;
   onClear: () => void;
   hasResults: boolean;
+  isMongo?: boolean;
 }
 
 const TopBar = ({ 
@@ -38,7 +39,8 @@ const TopBar = ({
   onCommit,
   onExport,
   onClear,
-  hasResults
+  hasResults,
+  isMongo = false
 }: TopBarProps) => {
   const navigate = useNavigate();
 
@@ -47,6 +49,8 @@ const TopBar = ({
     sessionStorage.removeItem('dbSchema');
     sessionStorage.removeItem('safeMode');
     sessionStorage.removeItem('postgresVersion');
+    sessionStorage.removeItem('dbType');
+    sessionStorage.removeItem('mongoConnectionString');
     navigate('/connect');
   };
 
@@ -68,7 +72,9 @@ const TopBar = ({
 
         <div className="w-px h-6 bg-border mx-1" />
 
-        {/* Transaction Buttons */}
+        {/* Transaction Buttons - PostgreSQL only */}
+        {!isMongo && (
+        <>
         <div className="flex items-center gap-1">
           <button
             onClick={onBeginTransaction}
@@ -97,6 +103,8 @@ const TopBar = ({
         </div>
 
         <div className="w-px h-6 bg-border mx-1" />
+        </>
+        )}
 
         {/* Results Actions */}
         <div className="flex items-center gap-1">

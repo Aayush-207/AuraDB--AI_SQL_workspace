@@ -13,11 +13,17 @@ const StatusBar = ({ isConnected }: StatusBarProps) => {
   useEffect(() => {
     const version = sessionStorage.getItem('postgresVersion');
     const connection = sessionStorage.getItem('dbConnection');
+    const storedDbType = sessionStorage.getItem('dbType') || 'postgresql';
     
     if (version) {
-      // Extract just the major version info (e.g., "PostgreSQL 15.2")
-      const match = version.match(/PostgreSQL\s+[\d.]+/i);
-      setPostgresVersion(match ? match[0] : version.split(' ').slice(0, 2).join(' '));
+      if (storedDbType === 'mongodb') {
+        // MongoDB version is already formatted as "MongoDB X.X.X"
+        setPostgresVersion(version);
+      } else {
+        // Extract just the major version info (e.g., "PostgreSQL 15.2")
+        const match = version.match(/PostgreSQL\s+[\d.]+/i);
+        setPostgresVersion(match ? match[0] : version.split(' ').slice(0, 2).join(' '));
+      }
     }
     
     if (connection) {

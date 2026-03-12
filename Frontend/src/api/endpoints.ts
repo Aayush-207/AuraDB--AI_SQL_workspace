@@ -6,6 +6,8 @@ export interface ConnectionPayload {
   database: string;
   username: string;
   password: string;
+  db_type: string;
+  connection_string?: string;
 }
 
 export interface SchemaTable {
@@ -36,6 +38,8 @@ export interface AIQueryPayload {
   password: string;
   prompt: string;
   safe_mode?: boolean;
+  db_type: string;
+  connection_string?: string;
 }
 
 export interface AIQueryResponse {
