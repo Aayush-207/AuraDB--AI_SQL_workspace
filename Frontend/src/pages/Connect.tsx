@@ -68,7 +68,7 @@ const Connect = () => {
       port: type === 'mongodb' ? 27017 : 5432,
       connection_string: '',
     }));
-    setUseConnectionString(false);
+    setUseConnectionString(type === 'mongodb');
     setError('');
   };
 
@@ -171,71 +171,42 @@ const Connect = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Connection String toggle for MongoDB */}
+          {/* Connection String input for MongoDB */}
           {isMongo && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.12 }}
             >
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-sm font-medium text-muted-foreground">
-                  Connection String
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUseConnectionString(!useConnectionString);
-                    if (useConnectionString) {
-                      setForm(prev => ({ ...prev, connection_string: '' }));
-                    }
+              <label className="block text-sm font-medium text-muted-foreground mb-1.5">
+                Connection String
+              </label>
+              <div className="relative">
+                <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                <input
+                  type="text"
+                  placeholder="mongodb+srv://user:pass@cluster.mongodb.net/"
+                  value={form.connection_string || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setForm(prev => ({ ...prev, connection_string: val }));
+                    // Try to extract database name from URI
+                    try {
+                      const pathMatch = val.match(/\.net\/([^?/]+)/);
+                      if (pathMatch && pathMatch[1] && !form.database) {
+                        setForm(prev => ({ ...prev, database: pathMatch[1] }));
+                      }
+                    } catch { /* ignore */ }
                   }}
-                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${
-                    useConnectionString
-                      ? 'bg-primary/20 text-primary'
-                      : 'bg-muted/50 text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  {useConnectionString ? 'Use Fields Instead' : 'Use Connection String'}
-                </button>
+                  className="w-full pl-9 pr-4 py-3 rounded-lg bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground/50 outline-none transition-all duration-200 focus:border-primary input-glow font-mono text-xs"
+                />
               </div>
-              <AnimatePresence>
-                {useConnectionString && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    <div className="relative">
-                      <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-                      <input
-                        type="text"
-                        placeholder="mongodb+srv://user:pass@cluster.mongodb.net/"
-                        value={form.connection_string || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setForm(prev => ({ ...prev, connection_string: val }));
-                          // Try to extract database name from URI
-                          try {
-                            const pathMatch = val.match(/\.net\/([^?/]+)/);
-                            if (pathMatch && pathMatch[1] && !form.database) {
-                              setForm(prev => ({ ...prev, database: pathMatch[1] }));
-                            }
-                          } catch { /* ignore */ }
-                        }}
-                        className="w-full pl-9 pr-4 py-3 rounded-lg bg-muted/50 border border-border text-foreground placeholder:text-muted-foreground/50 outline-none transition-all duration-200 focus:border-primary input-glow font-mono text-xs"
-                      />
-                    </div>
-                    {form.connection_string && (
-                      <p className="text-[10px] text-green-500/70 mt-1.5 flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                        Connection string detected — only Database Name required below
-                      </p>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              {form.connection_string && (
+                <p className="text-[10px] text-green-500/70 mt-1.5 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                  Connection string set
+                </p>
+              )}
             </motion.div>
           )}
 
