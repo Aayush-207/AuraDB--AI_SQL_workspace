@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Database, Loader2, AlertCircle, Lock, Eye, EyeOff, Link } from 'lucide-react';
 import { connectDatabase, type ConnectionPayload } from '@/api/endpoints';
+import postgresqlImage from '../../assets/postgresql.jpg';
+import mysqlImage from '../../assets/mysql.png';
+import mongodbImage from '../../assets/mongodb.png';
 
 const Connect = () => {
   const navigate = useNavigate();
@@ -29,6 +32,8 @@ const Connect = () => {
   const isMongo = form.db_type === 'mongodb';
   const isMySQL = form.db_type === 'mysql';
   const dbTypeLabel = isMongo ? 'MongoDB' : isMySQL ? 'MySQL' : 'PostgreSQL';
+  const dbBackgroundImage =
+    form.db_type === 'mysql' ? mysqlImage : form.db_type === 'mongodb' ? mongodbImage : postgresqlImage;
 
   // Auto-detect connection string pasted into host field
   const handleHostChange = (value: string) => {
@@ -144,10 +149,26 @@ const Connect = () => {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
     >
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <AnimatePresence mode="wait">
+          <motion.img
+            key={form.db_type}
+            src={dbBackgroundImage}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover object-center"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.45, ease: 'easeInOut' }}
+          />
+        </AnimatePresence>
+      </div>
+      <div className="absolute inset-0 bg-black/60 pointer-events-none" />
       <div className="absolute inset-0 bg-gradient-radial pointer-events-none" />
 
       <motion.div
-        className={`relative w-full max-w-md glass-strong rounded-2xl p-8 ${shaking ? 'animate-shake' : ''}`}
+        className={`relative z-10 w-full max-w-md bg-card/40 backdrop-blur-xl border border-border/50 rounded-2xl p-8 ${shaking ? 'animate-shake' : ''}`}
         initial={{ opacity: 0, y: 20, scale: 0.98 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         transition={{ duration: 0.5, delay: 0.1 }}
