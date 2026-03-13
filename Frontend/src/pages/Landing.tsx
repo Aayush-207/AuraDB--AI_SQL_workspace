@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 import HeroSection from '@/components/landing/HeroSection';
 import FeaturesSection from '@/components/landing/FeaturesSection';
+import WorkflowSection from '@/components/landing/WorkflowSection';
 import SecuritySection from '@/components/landing/SecuritySection';
 import CTASection from '@/components/landing/CTASection';
 
@@ -31,6 +32,7 @@ const Landing = () => {
     >
       <HeroSection />
       <FeaturesSection />
+      <WorkflowSection />
       <SecuritySection />
       <CTASection />
 

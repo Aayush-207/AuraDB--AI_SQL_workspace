@@ -1,15 +1,24 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
+import ctaBackground from '../../../assets/Database(2).jpg';
 
 const CTASection = () => {
   const navigate = useNavigate();
 
   return (
-    <section className="relative py-32 px-6">
-      <div className="max-w-3xl mx-auto text-center">
+    <section className="relative py-32 px-6 overflow-hidden">
+      <img
+        src={ctaBackground}
+        alt=""
+        aria-hidden="true"
+        className="absolute inset-0 w-full h-full object-cover object-center"
+      />
+      <div className="absolute inset-0 bg-black/55" />
+
+      <div className="relative z-10 max-w-3xl mx-auto text-center">
         <motion.h2
-          className="text-3xl md:text-5xl font-bold mb-6"
+          className="text-3xl md:text-5xl font-bold mb-6 text-white"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -18,7 +27,7 @@ const CTASection = () => {
           Ready to connect your database?
         </motion.h2>
         <motion.p
-          className="text-muted-foreground text-lg mb-10"
+          className="text-white/85 text-lg mb-10"
           initial={{ opacity: 0, y: 15 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}

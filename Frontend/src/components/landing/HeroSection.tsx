@@ -1,15 +1,21 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Sparkles, Database } from 'lucide-react';
+import databaseBackground from '../../../assets/Database.jpg';
 
 const HeroSection = () => {
   const navigate = useNavigate();
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-      {/* Animated gradient background */}
-      <div className="absolute inset-0 bg-gradient-hero" />
-      <div className="absolute inset-0 bg-gradient-radial" />
+      {/* Full-page background image */}
+      <div
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: `url(${databaseBackground})` }}
+      />
+
+      {/* Dark overlay for text readability */}
+      <div className="absolute inset-0 bg-black/65" />
       
       {/* Floating orbs */}
       <motion.div
@@ -31,9 +37,9 @@ const HeroSection = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
         >
-          <div className="inline-flex items-center gap-2 glass rounded-full px-4 py-2 mb-8">
+          <div className="inline-flex items-center gap-2 rounded-full px-4 py-2 mb-8 bg-black/35 border border-white/15 backdrop-blur-sm">
             <Sparkles className="w-4 h-4 text-primary" />
-            <span className="text-sm text-muted-foreground">Powered by Generative AI</span>
+            <span className="text-sm text-white/85">Powered by Generative AI</span>
           </div>
         </motion.div>
 
@@ -62,11 +68,11 @@ const HeroSection = () => {
             <span className="text-gradient">AuraDB</span>
           </span>
           <br />
-          <span className="text-foreground/70 text-4xl md:text-5xl">AI-Powered SQL Workspace</span>
+          <span className="text-white/85 text-4xl md:text-5xl">AI-Powered SQL Workspace</span>
         </motion.h1>
 
         <motion.p
-          className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto mb-10"
+          className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto mb-10"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3 }}

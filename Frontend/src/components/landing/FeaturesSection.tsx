@@ -33,7 +33,7 @@ const FeaturesSection = () => (
           Everything you need to <span className="text-gradient">work smarter</span>
         </h2>
         <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-          A complete toolkit for database interaction, powered by AI.
+          A complete toolkit for database interaction.
         </p>
       </motion.div>
 
