@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import type { Variants } from 'framer-motion';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import workflowBackground from '../../../assets/Long.jpg';
 
@@ -50,13 +51,13 @@ const WorkflowSection = () => {
       x: 0,
       rotateY: 0,
       scale: 1,
-      transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1], delay: 0 },
+      transition: { duration: 0.62, ease: [0.4, 0, 0.2, 1], delay: 0 },
     },
     exit: (dir: number) => ({
       x: dir * slideDistance,
       rotateY: 0,
       scale: 1,
-      transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
+      transition: { duration: 0.62, ease: [0.4, 0, 0.2, 1] },
     }),
   };
 
@@ -80,7 +81,7 @@ const WorkflowSection = () => {
         aria-hidden="true"
         className="absolute top-0 -left-[85%] h-full w-[220%] max-w-none object-cover"
         animate={{ x: activeStep * 140 }}
-        transition={{ duration: 0.55, ease: 'easeInOut' }}
+        transition={{ duration: 0.72, ease: 'easeInOut' }}
       />
       <div className="absolute inset-0 bg-black/55" />
 
@@ -107,7 +108,7 @@ const WorkflowSection = () => {
               <motion.article
                 key={activeStep}
                 custom={direction}
-                variants={cardVariants as any}
+                variants={cardVariants as unknown as Variants}
                 initial="enter"
                 animate="center"
                 exit="exit"

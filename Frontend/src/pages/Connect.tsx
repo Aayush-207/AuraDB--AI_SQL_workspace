@@ -94,6 +94,12 @@ const Connect = () => {
     exit: (dir: number) => ({ x: dir * -80, opacity: 0 }),
   };
 
+  const backgroundVariants = {
+    enter: (dir: number) => ({ x: `${dir * 100}%` }),
+    center: { x: '0%' },
+    exit: (dir: number) => ({ x: `${-dir * 100}%` }),
+  };
+
   const handleSuggestionClick = (field: 'host' | 'username', value: string) => {
     setForm((prev) => ({ ...prev, [field]: value }));
     if (field === 'host') {
@@ -150,17 +156,19 @@ const Connect = () => {
       transition={{ duration: 0.4 }}
     >
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <AnimatePresence mode="wait">
+        <AnimatePresence initial={false} mode="sync" custom={slideDirection.current}>
           <motion.img
             key={form.db_type}
+            custom={slideDirection.current}
             src={dbBackgroundImage}
             alt=""
             aria-hidden="true"
             className="absolute inset-0 w-full h-full object-cover object-center"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.45, ease: 'easeInOut' }}
+            variants={backgroundVariants as unknown as import('framer-motion').Variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ duration: 0.45, ease: [0.4, 0, 0.2, 1] }}
           />
         </AnimatePresence>
       </div>
