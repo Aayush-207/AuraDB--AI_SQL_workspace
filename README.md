@@ -1,122 +1,129 @@
-# 🗃️ AuraDB — AI SQL Workspace
+<h1 align="center">🗃️ AuraDB — <span style="color:#22c55e;">AI SQL Workspace</span></h1>
 
-> A modern, AI-powered database client that converts natural language to SQL queries using Google Gemini API. Supports PostgreSQL, MySQL, and MongoDB with a unified interface.
+<p align="center">
+  <i>AI-powered database client that turns natural language into SQL/Mongo queries using Google Gemini.</i>
+</p>
 
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15+-4169E1?logo=postgresql)
-![MySQL](https://img.shields.io/badge/MySQL-8+-00758F?logo=mysql)
-![MongoDB](https://img.shields.io/badge/MongoDB-5+-13AA52?logo=mongodb)
-![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3-06B6D4?logo=tailwindcss)
-
-## ✨ Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **Multi-Database Support** | PostgreSQL, MySQL, and MongoDB with seamless switching via 3-way toggle |
-| **Natural Language Queries** | Type questions in plain English, get executable SQL/queries powered by Gemini AI |
-| **Safe Mode** | Blocks dangerous operations (DROP, DELETE, TRUNCATE) with confirmation modals |
-| **Transaction Control** | BEGIN, COMMIT, ROLLBACK buttons for manual transaction management (SQL databases) |
-| **Schema Explorer** | Auto-fetches and displays database schema with tables, columns, types, and MongoDB collections |
-| **Real-time Results** | Execute queries with instant table/chart visualization |
-| **CSV Export** | One-click export of query results |
-| **Terminal Console** | Color-coded logs for queries, errors, and system messages |
-| **Cloud & Local** | Connect to both localhost and cloud-hosted databases (PostgreSQL, MySQL, MongoDB Atlas) |
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        Frontend (React)                          │
-│  ┌──────────┐  ┌─────────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │  TopBar  │  │  AI Panel   │  │ Results  │  │   Terminal   │  │
-│  │(Actions) │  │ (Chat UI)   │  │ (Table)  │  │  (Console)   │  │
-│  └──────────┘  └─────────────┘  └──────────┘  └──────────────┘  │
-│      DB Toggle (PostgreSQL / MySQL / MongoDB)                    │
-└─────────────────────────────────────────────────────────────────┘
-                              │ REST API
-┌─────────────────────────────────────────────────────────────────┐
-│                       Backend (FastAPI)                          │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐  │
-│  │  /connect   │  │  /ai-query   │  │  /execute              │  │
-│  │  (Auth)     │  │  (Gemini AI) │  │  (SQL Execution)       │  │
-│  └─────────────┘  └──────────────┘  └────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                     │            │            │
-        ┌────────────┴───┬────────┴──┬────────┴──────┐
-        │                │           │               │
-   ┌──────────┐   ┌──────────┐  ┌─────────┐  ┌─────────────┐
-   │PostgreSQL│   │  MySQL   │  │MongoDB  │  │PostgreSQL   │
-   │(Local)   │   │ (Local/  │  │(Local/  │  │(Cloud)      │
-   │          │   │  Cloud)  │  │ Atlas)  │  │             │
-   └──────────┘   └──────────┘  └─────────┘  └─────────────┘
-```
-
-## 🛠️ Tech Stack
-
-**Frontend:**
-- React 18 + TypeScript + Vite
-- TailwindCSS + shadcn/ui components
-- Framer Motion (animations & spring-based 3-way toggle)
-- TanStack Query (data fetching)
-- Recharts (data visualization)
-
-**Backend:**
-- FastAPI (Python)
-- psycopg2 (PostgreSQL driver)
-- pymysql (MySQL driver)
-- pymongo (MongoDB driver)
-- Google Gemini API (AI/LLM)
-- Pydantic (validation)
-
-## 🚀 Quick Start
-
-```bash
-# 1. Start backend
-.venv\Scripts\activate  # Windows
-pip install -r requirements.txt
-uvicorn main:app --port 8001 --reload
-
-# 2. Start frontend (new terminal)
-npm install && npm run dev
-```
-
-## 🌐 Network Requirements
-
-- **IPv6 Support**: Some cloud-hosted databases (e.g., Supabase) may require IPv6 connectivity. If you experience DNS resolution issues, ensure your network or ISP supports IPv6 or contact your provider.
-- **Port Access**: Ensure ports 8001 (backend) and 8080 (frontend) are accessible on your machine
-- **Firewall**: For cloud databases, whitelist your IP address in the database's security settings
-
-## 💡 Technical Highlights
-
-- **Multi-Database Architecture**: Unified backend routing for PostgreSQL, MySQL, and MongoDB with database-specific optimizations
-- **AI Context Injection**: Schema metadata is dynamically injected into Gemini prompts for accurate SQL/query generation
-- **Multi-Statement Execution**: MySQL supports executing multiple statements (e.g., CREATE TABLE + INSERT) in a single prompt
-- **Safe Mode Validation**: Server-side regex validation blocks destructive SQL patterns
-- **Spring-Based 3-Way Toggle**: Framer Motion powered database selector with smooth sliding animation
-- **Optimistic UI**: Results panel updates immediately while maintaining sync with backend
-- **Session Management**: Connection credentials stored in sessionStorage for workspace persistence
-- **Dynamic Chat Interface**: Auto-resizing textarea with keyboard shortcuts (Enter to send, Shift+Enter for newline)
-
-## 📸 Screenshots
-
-| Connect | Workspace |
-|---------|-----------|
-| Database connection form with validation | AI chat + Results + Schema explorer |
-
-## 🔒 Security Considerations
-
-- Credentials stored client-side only (sessionStorage) — not persisted to disk
-- Safe Mode enabled by default, blocks DROP/DELETE/TRUNCATE operations
-- SQL injection prevented via parameterized queries
-- MongoDB queries validated for safe operations
-- CORS configured for development
-- API keys (Gemini) stored server-side in `.env` (never exposed to frontend)
-- Multi-statement support validated to prevent chaining malicious queries
+<p align="center">
+  <img src="https://img.shields.io/badge/React-18-61DAFB?logo=react&style=for-the-badge" />
+  <img src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&style=for-the-badge" />
+  <img src="https://img.shields.io/badge/FastAPI-0.100%2B-009688?logo=fastapi&style=for-the-badge" />
+  <img src="https://img.shields.io/badge/PostgreSQL-15%2B-4169E1?logo=postgresql&style=for-the-badge" />
+  <img src="https://img.shields.io/badge/MySQL-8%2B-00758F?logo=mysql&style=for-the-badge" />
+  <img src="https://img.shields.io/badge/MongoDB-5%2B-13AA52?logo=mongodb&style=for-the-badge" />
+  <img src="https://img.shields.io/badge/TailwindCSS-3-06B6D4?logo=tailwindcss&style=for-the-badge" />
+</p>
 
 ---
 
-<p align="center">
-  Built with ☕ and curiosity — Supports PostgreSQL, MySQL, and MongoDB
-</p>
+## ✨ Key Features
+
+| 🧩 Feature | 🚀 Description |
+|-----------|----------------|
+| **Multi-Database Support** | Unified workspace for **PostgreSQL**, **MySQL**, and **MongoDB** with a 3‑way toggle |
+| **Natural Language Queries** | Ask in plain English, get executable SQL/Mongo queries via **Google Gemini** |
+| **Safe Mode** | Blocks destructive operations (`DROP`, `DELETE`, `TRUNCATE`) unless explicitly confirmed |
+| **Transaction Control** | One‑click **BEGIN / COMMIT / ROLLBACK** for SQL databases |
+| **Schema Explorer** | Auto-discovers tables, columns, types, and MongoDB collections |
+| **Real-time Results** | Instant table and chart views for executed queries |
+| **CSV Export** | One-click export of result sets |
+| **Terminal Console** | Color-coded logs for queries, errors, and system messages |
+
+---
+
+## 🔁 Workflow
+
+1. **Choose Database**  
+   Use the **3‑way toggle** to select PostgreSQL, MySQL, or MongoDB.
+
+2. **Connect Your DB**  
+   Enter credentials for your **local** or **cloud** database (Supabase, Railway, RDS, MongoDB Atlas, etc.) and connect.
+
+3. **Chat in Natural Language**  
+   Describe what you want (e.g., _“Show me the top 10 customers by revenue this month”_).
+
+4. **Review & Run Query**  
+   AuraDB shows the generated SQL/Mongo query — you can edit it and then execute.
+
+5. **Inspect Results & Export**  
+   View results in the table/chart panel and **export to CSV** if needed.
+
+6. **Commit Changes Safely**  
+   For SQL databases, use **BEGIN / COMMIT / ROLLBACK** and Safe Mode to control data changes.
+
+---
+
+## 🏗️ System Architecture
+
+```text
+┌───────────────────────────────────────────────────────────────┐
+│                      🖥️ Frontend (React)                      │
+│  Top Bar · AI Panel · Results Panel · Terminal Console        │
+│                PostgreSQL ◁▷ MySQL ◁▷ MongoDB                 │
+└───────────────────────────────────────────────────────────────┘
+                              │ REST API
+                              ▼
+┌───────────────────────────────────────────────────────────────┐
+│                       ⚙️ Backend (FastAPI)                    │
+│      /connect      ·      /ai-query      ·      /execute      │
+└───────────────────────────────────────────────────────────────┘
+          │                 │                      │
+          ▼                 ▼                      ▼
+     PostgreSQL         MySQL                MongoDB / Atlas
+     
+```
+# 1️⃣ Start backend
+.venv\Scripts\activate     # Windows (adjust for your OS)
+pip install -r requirements.txt
+uvicorn main:app --port 8001 --reload
+
+# 2️⃣ Start frontend (new terminal)
+npm install
+npm run dev
+
+
+---
+
+## 🛠️ Tech Stack
+
+### 🎨 Frontend
+
+- **React 18**, **TypeScript**, **Vite**
+- **TailwindCSS**, **shadcn/ui**
+- **Framer Motion** (3‑way DB toggle animation)
+- **TanStack Query**, **Recharts**
+
+### ⚙️ Backend
+
+- **FastAPI** (Python)
+- **psycopg2** (PostgreSQL), **pymysql** (MySQL), **pymongo** (MongoDB)
+- **Google Gemini API** (NL → SQL/Mongo)
+- **Pydantic** (validation)
+
+---
+
+## 💡 Technical Highlights
+
+- **Multi-engine backend** with unified API for PostgreSQL, MySQL, and MongoDB.
+- **Schema-aware prompts** so Gemini generates accurate, context-specific queries.
+- **Safe Mode + transaction controls** for safer write operations.
+- **Session-based workspace** using `sessionStorage` (no server-side credential storage).
+
+
+---
+
+## 🌐 Network Requirements
+
+- **Ports**: `8001` (backend), `8080` (frontend) must be accessible.
+- **Cloud DBs**: Whitelist your IP in your DB provider (e.g., Supabase, Atlas, RDS).
+- **IPv6**: If using providers that rely on IPv6 (e.g., some Supabase setups), ensure your network supports it.
+
+---
+
+## 🔒 Security Considerations
+
+- Credentials stay in `sessionStorage` on the client.
+- **Safe Mode** is enabled by default.
+- Parameterized queries mitigate SQL injection risks.
+
+---
