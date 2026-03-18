@@ -7,3 +7,4 @@ google-genai>=1.0.0
 pymongo>=4.10.0
 pymysql>=1.1.1
 dnspython>=2.6.1
+certifi>=2024.8.30

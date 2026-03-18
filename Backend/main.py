@@ -124,6 +124,7 @@ class AIQueryErrorResponse(BaseModel):
 import subprocess
 import socket
 import dns.resolver
+import certifi
 
 
 def resolve_host(host: str) -> str:
@@ -257,13 +258,26 @@ def get_schemas_and_tables(conn) -> List[SchemaInfo]:
 
 def get_mongo_client(host: str = "", port: int = 27017, username: str = "", password: str = "", connection_string: str = ""):
     """Create a MongoDB client connection."""
+    client_kwargs = {
+        "serverSelectionTimeoutMS": 15000,
+        "connectTimeoutMS": 20000,
+        "socketTimeoutMS": 20000,
+        # Prefer explicit CA bundle to avoid TLS handshake issues in some environments.
+        "tlsCAFile": certifi.where(),
+    }
+
     if connection_string:
-        return MongoClient(connection_string, serverSelectionTimeoutMS=15000)
+        if connection_string.startswith("mongodb+srv://") and "tls=" not in connection_string.lower():
+            separator = "&" if "?" in connection_string else "?"
+            connection_string = f"{connection_string}{separator}tls=true"
+        return MongoClient(connection_string, **client_kwargs)
+
     if username and password:
         uri = f"mongodb://{username}:{password}@{host}:{port}/"
     else:
         uri = f"mongodb://{host}:{port}/"
-    return MongoClient(uri, serverSelectionTimeoutMS=10000)
+
+    return MongoClient(uri, **client_kwargs)
 
 
 def serialize_mongo_doc(doc: dict) -> dict:
