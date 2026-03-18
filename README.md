@@ -73,13 +73,17 @@
      
 ```
 # 1️⃣ Start backend
+```
 .venv\Scripts\activate     # Windows (adjust for your OS)
 pip install -r requirements.txt
 uvicorn main:app --port 8001 --reload
+```
 
 # 2️⃣ Start frontend (new terminal)
+```
 npm install
 npm run dev
+```
 
 
 ---
